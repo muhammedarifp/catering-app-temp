@@ -3,6 +3,7 @@
 import PageLayout from '@/components/PageLayout';
 import { events } from '@/lib/data';
 import { Search, Phone, Mail, CalendarDays, User, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { useState, useMemo } from 'react';
 
 // Extract unique clients from events
@@ -74,43 +75,45 @@ export default function ClientsPage() {
                 {/* Client List */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filteredClients.map(client => (
-                        <div key={client.id} className="bg-white border border-zinc-200 rounded-xl p-5 hover:shadow-md transition-shadow group">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-semibold text-lg">
-                                        {client.name.charAt(0)}
+                        <Link href={`/clients/${encodeURIComponent(client.id)}`} key={client.id} className="block group">
+                            <div className="bg-white border border-zinc-200 rounded-xl p-5 hover:shadow-md hover:border-indigo-300 transition-all h-full relative">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 rounded-full bg-zinc-100 group-hover:bg-indigo-50 flex items-center justify-center text-zinc-600 group-hover:text-indigo-600 font-semibold text-lg transition-colors">
+                                            {client.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-zinc-900 group-hover:text-indigo-700 transition-colors">{client.name}</h3>
+                                            <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
+                                                <CalendarDays className="w-3 h-3" />
+                                                Last seen: {new Date(client.lastEventDate).toLocaleDateString()}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold text-zinc-900">{client.name}</h3>
-                                        <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
-                                            <CalendarDays className="w-3 h-3" />
-                                            Last seen: {new Date(client.lastEventDate).toLocaleDateString()}
-                                        </p>
+                                    <div className="p-2 text-zinc-400 group-hover:text-indigo-600 group-hover:bg-indigo-50 rounded-full transition-colors">
+                                        <ArrowRight className="w-5 h-5" />
                                     </div>
                                 </div>
-                                <button className="p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 rounded-full transition-colors">
-                                    <ArrowRight className="w-5 h-5" />
-                                </button>
-                            </div>
 
-                            <div className="space-y-2 border-t border-zinc-100 pt-4">
-                                <div className="flex items-center gap-2 text-sm text-zinc-600">
-                                    <Phone className="w-4 h-4 text-zinc-400" />
-                                    <span>{client.phone}</span>
-                                </div>
-                                {client.email && (
+                                <div className="space-y-2 border-t border-zinc-100 pt-4">
                                     <div className="flex items-center gap-2 text-sm text-zinc-600">
-                                        <Mail className="w-4 h-4 text-zinc-400" />
-                                        <span className="truncate">{client.email}</span>
+                                        <Phone className="w-4 h-4 text-zinc-400" />
+                                        <span>{client.phone}</span>
                                     </div>
-                                )}
-                            </div>
+                                    {client.email && (
+                                        <div className="flex items-center gap-2 text-sm text-zinc-600">
+                                            <Mail className="w-4 h-4 text-zinc-400" />
+                                            <span className="truncate">{client.email}</span>
+                                        </div>
+                                    )}
+                                </div>
 
-                            <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between text-sm">
-                                <span className="text-zinc-500">Events: <span className="font-medium text-zinc-900">{client.totalEvents}</span></span>
-                                <span className="text-zinc-500">Spent: <span className="font-medium text-zinc-900">₹{client.totalSpent.toLocaleString()}</span></span>
+                                <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between text-sm">
+                                    <span className="text-zinc-500">Events: <span className="font-medium text-zinc-900">{client.totalEvents}</span></span>
+                                    <span className="text-zinc-500">Spent: <span className="font-medium text-zinc-900">₹{client.totalSpent.toLocaleString('en-IN')}</span></span>
+                                </div>
                             </div>
-                        </div>
+                        </Link>
                     ))}
                 </div>
 

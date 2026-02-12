@@ -89,6 +89,30 @@ export default function SettingsPage() {
                </div>
             </div>
 
+            {/* Experimental Features */}
+            <div className="bg-white rounded-xl border border-zinc-200 p-6">
+               <div className="flex items-center gap-3 mb-4">
+                  <Shield className="w-5 h-5 text-zinc-400" />
+                  <h3 className="font-semibold text-zinc-900">Experimental Features</h3>
+               </div>
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                     <div>
+                        <p className="text-sm font-medium text-zinc-900">Chef Mode (Live Kitchen)</p>
+                        <p className="text-xs text-zinc-500">Enable the high-contrast /kitchen view for chefs.</p>
+                     </div>
+                     <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" defaultChecked className="sr-only peer" />
+                        <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-zinc-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                     </label>
+                  </div>
+                  <div className="mt-2 p-3 bg-zinc-50 rounded-lg border border-zinc-100 flex justify-between items-center">
+                     <span className="text-xs text-zinc-600 font-mono">Kitchen URL: /kitchen</span>
+                     <a href="/kitchen" className="text-xs font-bold text-indigo-600 hover:underline" target="_blank">Open View</a>
+                  </div>
+               </div>
+            </div>
+
          </div>
       </PageLayout>
    );

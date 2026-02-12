@@ -1,45 +1,69 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, Trash2 } from 'lucide-react';
 import PageLayout from '@/components/PageLayout';
 import { units, dishCategories } from '@/lib/data';
 import { InventoryItem, Unit } from '@/lib/types';
-import { addInventoryItem } from '@/lib/inventoryStorage';
+import { getInventoryItem, updateInventoryItem, loadInventory, saveInventory } from '@/lib/inventoryStorage';
 
-export default function CreateInventoryPage() {
+export default function EditInventoryPage({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
+    const { id } = use(params);
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
-    const [formData, setFormData] = useState({
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [formData, setFormData] = useState<Partial<InventoryItem>>({
         name: '',
         category: '',
         quantity: 0,
-        unit: 'kg' as Unit,
+        unit: 'kg',
         minQuantity: 0,
         pricePerUnit: 0,
     });
+
+    useEffect(() => {
+        const item = getInventoryItem(id);
+        if (item) {
+            setFormData(item);
+        } else {
+            // Handle not found
+            // router.push('/inventory'); 
+            // In a real app, maybe show 404
+        }
+    }, [id]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
 
         try {
-            // Add to persistent storage
-            addInventoryItem({
-                name: formData.name,
-                category: formData.category,
-                quantity: formData.quantity,
-                unit: formData.unit,
-                minQuantity: formData.minQuantity,
-                pricePerUnit: formData.pricePerUnit,
-                trackingType: 'stocked', // Default for now
-            });
-
+            updateInventoryItem(id, formData);
             router.push('/inventory');
         } catch (error) {
-            console.error('Failed to save item', error);
+            console.error('Failed to update item', error);
             setIsLoading(false);
+        }
+    };
+
+    const handleDelete = () => {
+        if (!confirm('Are you sure you want to delete this item?')) return;
+        setIsDeleting(true);
+
+        // Simple delete logic (not in storage utils yet, implementing ad-hoc or should I add it?)
+        // Let's implement ad-hoc for MVP speed, accessing storage directly
+        try {
+            const items = loadInventory();
+            const newItems = items.filter(i => i.id !== id);
+            saveInventory(newItems);
+            router.push('/inventory');
+        } catch (e) {
+            console.error('Failed to delete', e);
+            setIsDeleting(false);
         }
     };
 
@@ -57,19 +81,33 @@ export default function CreateInventoryPage() {
         'Other'
     ];
 
+    if (!formData.name && !isLoading) { // Simple loading check
+        // return <div>Loading...</div>; // Or handle empty state
+    }
+
     return (
         <PageLayout currentPath="/inventory">
             <div className="max-w-2xl mx-auto px-4 py-8 lg:px-8">
 
                 {/* Header */}
-                <div className="flex items-center gap-4 mb-8">
-                    <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-zinc-100 rounded-full text-zinc-500">
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <div>
-                        <h1 className="text-xl font-bold text-zinc-900">Add Inventory Item</h1>
-                        <p className="text-xs text-zinc-500">Register new raw material</p>
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-zinc-100 rounded-full text-zinc-500">
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div>
+                            <h1 className="text-xl font-bold text-zinc-900">Edit Item</h1>
+                            <p className="text-xs text-zinc-500">Update inventory details</p>
+                        </div>
                     </div>
+                    <button
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                        title="Delete Item"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                    </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -108,7 +146,7 @@ export default function CreateInventoryPage() {
                     <div className="bg-white rounded-xl border border-zinc-200 p-6 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-zinc-700 mb-1">Initial Quantity</label>
+                                <label className="block text-sm font-medium text-zinc-700 mb-1">Current Stock</label>
                                 <input
                                     type="number"
                                     required
@@ -149,7 +187,6 @@ export default function CreateInventoryPage() {
                                     onChange={e => setFormData({ ...formData, minQuantity: parseFloat(e.target.value) })}
                                 />
                             </div>
-                            <p className="text-xs text-zinc-500 mt-1">We'll notify you when stock drops below this level.</p>
                         </div>
                     </div>
 
@@ -167,7 +204,6 @@ export default function CreateInventoryPage() {
                                 value={formData.pricePerUnit}
                                 onChange={e => setFormData({ ...formData, pricePerUnit: parseFloat(e.target.value) })}
                             />
-                            <p className="text-xs text-zinc-500 mt-1">Cost per {formData.unit || 'unit'} for recipe calculations.</p>
                         </div>
                     </div>
 
@@ -184,7 +220,7 @@ export default function CreateInventoryPage() {
                             disabled={isLoading}
                             className="flex items-center gap-2 bg-zinc-900 text-white px-6 py-2.5 text-sm font-medium hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50"
                         >
-                            {isLoading ? 'Saving...' : 'Save Item'}
+                            {isLoading ? 'Saving...' : 'Save Changes'}
                             {!isLoading && <Save className="w-4 h-4" />}
                         </button>
                     </div>

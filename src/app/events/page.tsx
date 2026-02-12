@@ -12,25 +12,27 @@ import {
   ChevronRight,
   ChefHat,
   Store,
+  MoreHorizontal
 } from 'lucide-react';
 import PageLayout from '@/components/PageLayout';
 import { events, formatCurrency, formatDate, eventTypeLabels } from '@/lib/data';
 import { Event, EventStatus, EventType } from '@/lib/types';
+import Link from 'next/link';
 
 const statusStyles: Record<EventStatus, string> = {
-  confirmed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  pending: 'bg-amber-100 text-amber-700 border-amber-200',
-  completed: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-  cancelled: 'bg-red-100 text-red-700 border-red-200',
+  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-100 ring-emerald-500/10',
+  pending: 'bg-amber-50 text-amber-700 border-amber-100 ring-amber-500/10',
+  completed: 'bg-slate-50 text-slate-700 border-slate-100 ring-slate-500/10',
+  cancelled: 'bg-red-50 text-red-700 border-red-100 ring-red-500/10',
 };
 
 const eventTypeStyles: Record<EventType, string> = {
-  wedding: 'bg-pink-100 text-pink-700',
-  corporate: 'bg-blue-100 text-blue-700',
-  birthday: 'bg-purple-100 text-purple-700',
-  engagement: 'bg-rose-100 text-rose-700',
-  anniversary: 'bg-orange-100 text-orange-700',
-  other: 'bg-zinc-100 text-zinc-700',
+  wedding: 'text-pink-600 bg-pink-50 border-pink-100',
+  corporate: 'text-blue-600 bg-blue-50 border-blue-100',
+  birthday: 'text-purple-600 bg-purple-50 border-purple-100',
+  engagement: 'text-rose-600 bg-rose-50 border-rose-100',
+  anniversary: 'text-orange-600 bg-orange-50 border-orange-100',
+  other: 'text-slate-600 bg-slate-50 border-slate-100',
 };
 
 export default function EventsPage() {
@@ -55,61 +57,42 @@ export default function EventsPage() {
 
   return (
     <PageLayout currentPath="/events">
-      <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-zinc-900 lg:text-2xl">Events</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              Manage all your catering events
-            </p>
-          </div>
-          <a
-            href="/events/create"
-            className="flex items-center justify-center gap-2 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Event</span>
-          </a>
-        </div>
+      <div className="min-h-screen bg-slate-50/50 pb-20">
 
-        {/* Search and Filters */}
-        <div className="mb-6 space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Search events..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full border border-zinc-200 bg-white py-2.5 pl-10 pr-4 text-sm placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none"
-              />
+        {/* Header Section */}
+        <div className="bg-white border-b border-slate-200 sticky top-0 z-20">
+          <div className="max-w-5xl mx-auto px-4 lg:px-8 py-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Events Registry</h1>
+                <p className="text-sm text-slate-500 mt-1">Manage catering schedules and client orders</p>
+              </div>
+              <Link
+                href="/events/create"
+                className="flex items-center justify-center gap-2 bg-slate-900 px-5 py-2.5 rounded-xl text-sm font-semibold text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 active:scale-95"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Event</span>
+              </Link>
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 border px-4 py-2.5 text-sm font-medium transition-colors ${
-                showFilters
-                  ? 'border-zinc-900 bg-zinc-900 text-white'
-                  : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
-              }`}
-            >
-              <Filter className="h-4 w-4" />
-              <span className="hidden sm:inline">Filters</span>
-            </button>
-          </div>
 
-          {/* Filter Options */}
-          {showFilters && (
-            <div className="flex flex-wrap gap-3 border border-zinc-200 bg-white p-4">
-              <div className="w-full sm:w-auto">
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
-                  Status
-                </label>
+            {/* Filter Bar */}
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by client, location, or event name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all"
+                />
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as EventStatus | 'all')}
-                  className="w-full border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none sm:w-40"
+                  className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer min-w-[140px]"
                 >
                   <option value="all">All Status</option>
                   <option value="pending">Pending</option>
@@ -117,15 +100,10 @@ export default function EventsPage() {
                   <option value="completed">Completed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
-              </div>
-              <div className="w-full sm:w-auto">
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
-                  Event Type
-                </label>
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value as EventType | 'all')}
-                  className="w-full border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none sm:w-40"
+                  className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer min-w-[140px]"
                 >
                   <option value="all">All Types</option>
                   <option value="wedding">Wedding</option>
@@ -137,26 +115,34 @@ export default function EventsPage() {
                 </select>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Results Count */}
-        <p className="mb-4 text-sm text-zinc-500">
-          Showing {sortedEvents.length} event{sortedEvents.length !== 1 ? 's' : ''}
-        </p>
+        {/* List Content */}
+        <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-medium text-slate-500">
+              Showing {sortedEvents.length} event{sortedEvents.length !== 1 ? 's' : ''}
+            </p>
+          </div>
 
-        {/* Events List */}
-        <div className="space-y-3">
-          {sortedEvents.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
+          <div className="space-y-4">
+            {sortedEvents.map((event) => (
+              <EventCard key={event.id} event={event} />
+            ))}
 
-          {sortedEvents.length === 0 && (
-            <div className="border border-zinc-200 bg-white p-8 text-center">
-              <p className="text-zinc-500">No events found</p>
-            </div>
-          )}
+            {sortedEvents.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
+                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
+                  <Search className="w-5 h-5 text-slate-400" />
+                </div>
+                <h3 className="text-slate-900 font-medium">No events found</h3>
+                <p className="text-slate-500 text-sm mt-1">Try adjusting your filters or search query.</p>
+              </div>
+            )}
+          </div>
         </div>
+
       </div>
     </PageLayout>
   );
@@ -164,74 +150,83 @@ export default function EventsPage() {
 
 function EventCard({ event }: { event: Event }) {
   return (
-    <a
+    <Link
       href={`/events/${event.id}`}
-      className="block border border-zinc-200 bg-white transition-colors hover:bg-zinc-50"
+      className="group block bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 overflow-hidden"
     >
-      <div className="p-4 lg:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          {/* Left Content */}
+      <div className="p-5 lg:p-6">
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+
+          {/* Date Block (Left) - Premium look */}
+          <div className="flex-shrink-0 flex md:flex-col items-center gap-3 md:gap-1 md:w-20 md:border-r md:border-slate-100 md:pr-6">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}</span>
+            <span className="text-2xl md:text-3xl font-bold text-slate-900">{new Date(event.date).getDate()}</span>
+            <span className="text-xs font-medium text-slate-400">{new Date(event.date).toLocaleDateString('en-US', { weekday: 'short' })}</span>
+          </div>
+
+          {/* Main Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`px-2 py-0.5 text-xs font-medium ${eventTypeStyles[event.eventType]}`}
-              >
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${statusStyles[event.status]} ring-1 ring-inset`}>
+                {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+              </span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${eventTypeStyles[event.eventType]}`}>
                 {eventTypeLabels[event.eventType]}
               </span>
-              <span
-                className={`border px-2 py-0.5 text-xs font-medium capitalize ${statusStyles[event.status]}`}
-              >
-                {event.status}
-              </span>
-              <span className="inline-flex items-center gap-1 border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-xs text-zinc-500">
-                {event.serviceType === 'per_plate' ? (
-                  <><Store className="h-3 w-3" /></>
-                ) : (
-                  <><ChefHat className="h-3 w-3" /></>
-                )}
-              </span>
+              {/* Service Type Icon */}
+              {event.serviceType === 'per_plate' ? (
+                <span className="ml-auto md:ml-0 inline-flex items-center gap-1 text-xs text-slate-400" title="Per Plate Service">
+                  <Store className="h-3 w-3" /> Plate
+                </span>
+              ) : (
+                <span className="ml-auto md:ml-0 inline-flex items-center gap-1 text-xs text-slate-400" title="Buffet Service">
+                  <ChefHat className="h-3 w-3" /> Buffet
+                </span>
+              )}
             </div>
-            <h3 className="mt-2 font-semibold text-zinc-900">{event.name}</h3>
-            <p className="mt-1 text-sm text-zinc-600">{event.client}</p>
 
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-zinc-500 lg:text-sm">
+            <h3 className="text-lg font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+              {event.name}
+            </h3>
+            <p className="text-sm text-slate-500 mb-3">{event.client}</p>
+
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
               <div className="flex items-center gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                {formatDate(event.date)}
+                <Clock className="w-4 h-4 text-slate-400" />
+                <span>{event.time}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                {event.time} - {event.endTime}
+                <Users className="w-4 h-4 text-slate-400" />
+                <span>{event.guests} Guests</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                {event.guests} guests
+                <MapPin className="w-4 h-4 text-slate-400" />
+                <span className="truncate max-w-[200px]">{event.location}</span>
               </div>
-            </div>
-            <div className="mt-1.5 flex items-center gap-1.5 text-xs text-zinc-500 lg:text-sm">
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0 lg:h-4 lg:w-4" />
-              <span className="truncate">{event.location}</span>
             </div>
           </div>
 
-          {/* Right Content */}
-          <div className="flex items-center justify-between sm:flex-col sm:items-end">
+          {/* Financials & Action (Right) */}
+          <div className="flex items-center justify-between md:flex-col md:items-end md:gap-1 pt-4 border-t border-slate-100 md:pt-0 md:border-t-0 pl-1">
             <div className="text-right">
-              <p className="text-lg font-semibold text-zinc-900">
-                {formatCurrency(event.amount)}
-              </p>
+              <p className="text-lg font-semibold text-slate-900">{formatCurrency(event.amount)}</p>
               {event.paidAmount < event.amount ? (
-                <p className="text-xs text-amber-600 lg:text-sm">
+                <p className="text-xs font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded inline-block mt-1">
                   Due: {formatCurrency(event.amount - event.paidAmount)}
                 </p>
               ) : (
-                <p className="text-xs text-emerald-600 lg:text-sm">Fully Paid</p>
+                <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded mt-1 ml-auto w-fit">
+                  <span>Paid</span>
+                </div>
               )}
             </div>
-            <ChevronRight className="h-5 w-5 text-zinc-400 sm:mt-4" />
+            <div className="md:mt-4 p-2 text-slate-300 md:bg-slate-50 rounded-full md:group-hover:bg-blue-50 md:group-hover:text-blue-600 transition-colors">
+              <ChevronRight className="w-5 h-5" />
+            </div>
           </div>
+
         </div>
       </div>
-    </a>
+    </Link>
   );
 }

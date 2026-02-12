@@ -1,4 +1,22 @@
-import { Event, InventoryItem, DashboardStats, Dish, MenuTemplate, Unit } from './types';
+import {
+  Event,
+  InventoryItem,
+  DashboardStats,
+  Dish,
+  MenuTemplate,
+  Unit,
+  Expense,
+  Income,
+  Invoice,
+  Vendor,
+  Transaction,
+  ExpenseCategory,
+  IncomeType,
+  PaymentMethod,
+  InvoiceStatus,
+  RecurrencePattern,
+  Staff,
+} from './types';
 
 // Units for dropdown
 export const units: { value: Unit; label: string }[] = [
@@ -26,24 +44,24 @@ export const dishCategories = [
 
 // Inventory items with proper units
 export const inventory: InventoryItem[] = [
-  { id: 'inv-1', name: 'Basmati Rice', category: 'Grains', quantity: 25, unit: 'kg', minQuantity: 50, pricePerUnit: 80, lastUpdated: '2026-02-01' },
-  { id: 'inv-2', name: 'Cooking Oil', category: 'Oils', quantity: 15, unit: 'liters', minQuantity: 20, pricePerUnit: 150, lastUpdated: '2026-02-01' },
-  { id: 'inv-3', name: 'Onions', category: 'Vegetables', quantity: 8, unit: 'kg', minQuantity: 30, pricePerUnit: 40, lastUpdated: '2026-02-02' },
-  { id: 'inv-4', name: 'Tomatoes', category: 'Vegetables', quantity: 5, unit: 'kg', minQuantity: 25, pricePerUnit: 50, lastUpdated: '2026-02-02' },
-  { id: 'inv-5', name: 'Chicken', category: 'Meat', quantity: 40, unit: 'kg', minQuantity: 30, pricePerUnit: 280, lastUpdated: '2026-02-01' },
-  { id: 'inv-6', name: 'Paneer', category: 'Dairy', quantity: 12, unit: 'kg', minQuantity: 15, pricePerUnit: 350, lastUpdated: '2026-02-01' },
-  { id: 'inv-7', name: 'Ghee', category: 'Dairy', quantity: 8, unit: 'kg', minQuantity: 10, pricePerUnit: 550, lastUpdated: '2026-01-30' },
-  { id: 'inv-8', name: 'Sugar', category: 'Sweeteners', quantity: 45, unit: 'kg', minQuantity: 25, pricePerUnit: 45, lastUpdated: '2026-01-28' },
-  { id: 'inv-9', name: 'Wheat Flour', category: 'Grains', quantity: 60, unit: 'kg', minQuantity: 40, pricePerUnit: 35, lastUpdated: '2026-01-29' },
-  { id: 'inv-10', name: 'Curd', category: 'Dairy', quantity: 3, unit: 'kg', minQuantity: 10, pricePerUnit: 60, lastUpdated: '2026-02-02' },
-  { id: 'inv-11', name: 'Green Chillies', category: 'Vegetables', quantity: 2, unit: 'kg', minQuantity: 5, pricePerUnit: 80, lastUpdated: '2026-02-02' },
-  { id: 'inv-12', name: 'Ginger', category: 'Spices', quantity: 3, unit: 'kg', minQuantity: 5, pricePerUnit: 120, lastUpdated: '2026-02-01' },
-  { id: 'inv-13', name: 'Garlic', category: 'Spices', quantity: 4, unit: 'kg', minQuantity: 5, pricePerUnit: 100, lastUpdated: '2026-02-01' },
-  { id: 'inv-14', name: 'Cream', category: 'Dairy', quantity: 5, unit: 'liters', minQuantity: 8, pricePerUnit: 200, lastUpdated: '2026-02-01' },
-  { id: 'inv-15', name: 'Butter', category: 'Dairy', quantity: 6, unit: 'kg', minQuantity: 8, pricePerUnit: 450, lastUpdated: '2026-02-01' },
-  { id: 'inv-16', name: 'Milk', category: 'Dairy', quantity: 20, unit: 'liters', minQuantity: 30, pricePerUnit: 55, lastUpdated: '2026-02-02' },
-  { id: 'inv-17', name: 'Cashews', category: 'Dry Fruits', quantity: 2, unit: 'kg', minQuantity: 3, pricePerUnit: 900, lastUpdated: '2026-02-01' },
-  { id: 'inv-18', name: 'Almonds', category: 'Dry Fruits', quantity: 1.5, unit: 'kg', minQuantity: 2, pricePerUnit: 800, lastUpdated: '2026-02-01' },
+  { id: 'inv-1', name: 'Basmati Rice', category: 'Grains', quantity: 25, unit: 'kg', minQuantity: 50, pricePerUnit: 80, trackingType: 'stocked', lastUpdated: '2026-02-01' },
+  { id: 'inv-2', name: 'Cooking Oil', category: 'Oils', quantity: 15, unit: 'liters', minQuantity: 20, pricePerUnit: 150, trackingType: 'stocked', lastUpdated: '2026-02-01' },
+  { id: 'inv-3', name: 'Onions', category: 'Vegetables', quantity: 8, unit: 'kg', minQuantity: 30, pricePerUnit: 40, trackingType: 'on_demand', lastUpdated: '2026-02-02' },
+  { id: 'inv-4', name: 'Tomatoes', category: 'Vegetables', quantity: 5, unit: 'kg', minQuantity: 25, pricePerUnit: 50, trackingType: 'on_demand', lastUpdated: '2026-02-02' },
+  { id: 'inv-5', name: 'Chicken', category: 'Meat', quantity: 40, unit: 'kg', minQuantity: 30, pricePerUnit: 280, trackingType: 'on_demand', lastUpdated: '2026-02-01' },
+  { id: 'inv-6', name: 'Paneer', category: 'Dairy', quantity: 12, unit: 'kg', minQuantity: 15, pricePerUnit: 350, trackingType: 'on_demand', lastUpdated: '2026-02-01' },
+  { id: 'inv-7', name: 'Ghee', category: 'Dairy', quantity: 8, unit: 'kg', minQuantity: 10, pricePerUnit: 550, trackingType: 'stocked', lastUpdated: '2026-01-30' },
+  { id: 'inv-8', name: 'Sugar', category: 'Sweeteners', quantity: 45, unit: 'kg', minQuantity: 25, pricePerUnit: 45, trackingType: 'stocked', lastUpdated: '2026-01-28' },
+  { id: 'inv-9', name: 'Wheat Flour', category: 'Grains', quantity: 60, unit: 'kg', minQuantity: 40, pricePerUnit: 35, trackingType: 'stocked', lastUpdated: '2026-01-29' },
+  { id: 'inv-10', name: 'Curd', category: 'Dairy', quantity: 3, unit: 'kg', minQuantity: 10, pricePerUnit: 60, trackingType: 'on_demand', lastUpdated: '2026-02-02' },
+  { id: 'inv-11', name: 'Green Chillies', category: 'Vegetables', quantity: 2, unit: 'kg', minQuantity: 5, pricePerUnit: 80, trackingType: 'on_demand', lastUpdated: '2026-02-02' },
+  { id: 'inv-12', name: 'Ginger', category: 'Spices', quantity: 3, unit: 'kg', minQuantity: 5, pricePerUnit: 120, trackingType: 'stocked', lastUpdated: '2026-02-01' },
+  { id: 'inv-13', name: 'Garlic', category: 'Spices', quantity: 4, unit: 'kg', minQuantity: 5, pricePerUnit: 100, trackingType: 'stocked', lastUpdated: '2026-02-01' },
+  { id: 'inv-14', name: 'Cream', category: 'Dairy', quantity: 5, unit: 'liters', minQuantity: 8, pricePerUnit: 200, trackingType: 'on_demand', lastUpdated: '2026-02-01' },
+  { id: 'inv-15', name: 'Butter', category: 'Dairy', quantity: 6, unit: 'kg', minQuantity: 8, pricePerUnit: 450, trackingType: 'stocked', lastUpdated: '2026-02-01' },
+  { id: 'inv-16', name: 'Milk', category: 'Dairy', quantity: 20, unit: 'liters', minQuantity: 30, pricePerUnit: 55, trackingType: 'on_demand', lastUpdated: '2026-02-02' },
+  { id: 'inv-17', name: 'Cashews', category: 'Dry Fruits', quantity: 2, unit: 'kg', minQuantity: 3, pricePerUnit: 900, trackingType: 'stocked', lastUpdated: '2026-02-01' },
+  { id: 'inv-18', name: 'Almonds', category: 'Dry Fruits', quantity: 1.5, unit: 'kg', minQuantity: 2, pricePerUnit: 800, trackingType: 'stocked', lastUpdated: '2026-02-01' },
 ];
 
 // Dishes/Recipes with ingredient mapping
@@ -649,3 +667,714 @@ export const calculateRecipeIngredients = (dishIds: string[], guests: number) =>
   const quantities = dishIds.reduce((acc, id) => ({ ...acc, [id]: guests }), {} as Record<string, number>);
   return calculateDishIngredients(dishIds, quantities);
 };
+
+// =====================================================
+// ACCOUNTING DATA & HELPERS
+// =====================================================
+
+// Expense Category Labels & Colors
+export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
+  food_costs: 'Food Costs',
+  labor: 'Labor',
+  transport: 'Transport',
+  equipment_rental: 'Equipment Rental',
+  venue: 'Venue',
+  utilities: 'Utilities',
+  marketing: 'Marketing',
+  miscellaneous: 'Miscellaneous',
+};
+
+export const expenseCategoryColors: Record<ExpenseCategory, string> = {
+  food_costs: 'emerald',
+  labor: 'blue',
+  transport: 'amber',
+  equipment_rental: 'purple',
+  venue: 'pink',
+  utilities: 'cyan',
+  marketing: 'orange',
+  miscellaneous: 'slate',
+};
+
+export const incomeTypeLabels: Record<IncomeType, string> = {
+  event_revenue: 'Event Revenue',
+  tips: 'Tips',
+  equipment_rental: 'Equipment Rental',
+  consultancy: 'Consultancy',
+  miscellaneous: 'Miscellaneous',
+};
+
+export const incomeTypeColors: Record<IncomeType, string> = {
+  event_revenue: 'emerald',
+  tips: 'amber',
+  equipment_rental: 'purple',
+  consultancy: 'blue',
+  miscellaneous: 'slate',
+};
+
+export const paymentMethodLabels: Record<PaymentMethod, string> = {
+  cash: 'Cash',
+  bank_transfer: 'Bank Transfer',
+  upi: 'UPI',
+  card: 'Card',
+  cheque: 'Cheque',
+};
+
+export const invoiceStatusLabels: Record<InvoiceStatus, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  paid: 'Paid',
+  partial: 'Partial',
+  overdue: 'Overdue',
+  cancelled: 'Cancelled',
+};
+
+export const invoiceStatusColors: Record<InvoiceStatus, string> = {
+  draft: 'slate',
+  sent: 'blue',
+  paid: 'emerald',
+  partial: 'amber',
+  overdue: 'red',
+  cancelled: 'zinc',
+};
+
+export const recurrencePatternLabels: Record<RecurrencePattern, string> = {
+  none: 'One-time',
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  yearly: 'Yearly',
+};
+
+// Sample Expenses Data
+export const initialExpenses: Expense[] = [
+  {
+    id: 'exp-1',
+    category: 'food_costs',
+    description: 'Vegetables and groceries for Sharma Wedding',
+    amount: 15000,
+    date: '2026-02-01',
+    paymentMethod: 'upi',
+    vendor: 'Krishna Vegetables',
+    vendorContact: '+91 98765 11111',
+    receiptNumber: 'REC-001',
+    eventId: '1',
+    isRecurring: false,
+    tags: ['vegetables', 'wedding'],
+    createdAt: '2026-02-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'exp-2',
+    category: 'labor',
+    description: 'Chef and helper wages - Sharma Wedding',
+    amount: 25000,
+    date: '2026-02-05',
+    paymentMethod: 'cash',
+    vendor: 'Daily Wage Workers',
+    eventId: '1',
+    isRecurring: false,
+    createdAt: '2026-02-05',
+    updatedAt: '2026-02-05',
+  },
+  {
+    id: 'exp-3',
+    category: 'transport',
+    description: 'Vehicle rental for equipment transport',
+    amount: 5000,
+    date: '2026-02-04',
+    paymentMethod: 'cash',
+    vendor: 'Quick Transport Services',
+    eventId: '1',
+    isRecurring: false,
+    createdAt: '2026-02-04',
+    updatedAt: '2026-02-04',
+  },
+  {
+    id: 'exp-4',
+    category: 'utilities',
+    description: 'Monthly electricity bill - Kitchen',
+    amount: 8500,
+    date: '2026-02-01',
+    paymentMethod: 'bank_transfer',
+    vendor: 'TSSPDCL',
+    receiptNumber: 'ELEC-FEB-2026',
+    isRecurring: true,
+    recurrencePattern: 'monthly',
+    createdAt: '2026-02-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'exp-5',
+    category: 'equipment_rental',
+    description: 'Chafing dishes and serving equipment',
+    amount: 12000,
+    date: '2026-02-04',
+    paymentMethod: 'upi',
+    vendor: 'Party Rentals Hyderabad',
+    eventId: '1',
+    isRecurring: false,
+    createdAt: '2026-02-04',
+    updatedAt: '2026-02-04',
+  },
+  {
+    id: 'exp-6',
+    category: 'food_costs',
+    description: 'Chicken and meat for wedding',
+    amount: 28000,
+    date: '2026-02-04',
+    paymentMethod: 'cash',
+    vendor: 'Fresh Meat Suppliers',
+    vendorContact: '+91 98765 44444',
+    eventId: '1',
+    isRecurring: false,
+    createdAt: '2026-02-04',
+    updatedAt: '2026-02-04',
+  },
+  {
+    id: 'exp-7',
+    category: 'marketing',
+    description: 'Google Ads for catering services',
+    amount: 5000,
+    date: '2026-01-15',
+    paymentMethod: 'card',
+    vendor: 'Google Ads',
+    isRecurring: true,
+    recurrencePattern: 'monthly',
+    createdAt: '2026-01-15',
+    updatedAt: '2026-01-15',
+  },
+  {
+    id: 'exp-8',
+    category: 'utilities',
+    description: 'Monthly gas cylinder refill',
+    amount: 3200,
+    date: '2026-01-28',
+    paymentMethod: 'cash',
+    vendor: 'HP Gas Agency',
+    isRecurring: true,
+    recurrencePattern: 'monthly',
+    createdAt: '2026-01-28',
+    updatedAt: '2026-01-28',
+  },
+];
+
+// Sample Income Data (Non-Event)
+export const initialIncome: Income[] = [
+  {
+    id: 'inc-1',
+    type: 'tips',
+    description: 'Client tip - Sharma Wedding',
+    amount: 5000,
+    date: '2026-02-05',
+    paymentMethod: 'cash',
+    payer: 'Rajesh Sharma',
+    eventId: '1',
+    createdAt: '2026-02-05',
+    updatedAt: '2026-02-05',
+  },
+  {
+    id: 'inc-2',
+    type: 'equipment_rental',
+    description: 'Rented serving equipment to external party',
+    amount: 3000,
+    date: '2026-02-02',
+    paymentMethod: 'upi',
+    payer: 'Local Caterer',
+    createdAt: '2026-02-02',
+    updatedAt: '2026-02-02',
+  },
+  {
+    id: 'inc-3',
+    type: 'consultancy',
+    description: 'Menu planning consultation',
+    amount: 2500,
+    date: '2026-01-28',
+    paymentMethod: 'bank_transfer',
+    payer: 'New Client',
+    createdAt: '2026-01-28',
+    updatedAt: '2026-01-28',
+  },
+  {
+    id: 'inc-4',
+    type: 'miscellaneous',
+    description: 'Leftover ingredient sale',
+    amount: 1500,
+    date: '2026-01-20',
+    paymentMethod: 'cash',
+    payer: 'Local Restaurant',
+    createdAt: '2026-01-20',
+    updatedAt: '2026-01-20',
+  },
+];
+
+// Sample Vendors Data
+export const initialVendors: Vendor[] = [
+  {
+    id: 'vendor-1',
+    name: 'Krishna Vegetables',
+    contactPerson: 'Krishna Reddy',
+    phone: '+91 98765 11111',
+    address: 'Rythu Bazaar, Mehdipatnam',
+    category: 'food_costs',
+    totalTransactions: 45,
+    totalAmount: 125000,
+    createdAt: '2025-01-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'vendor-2',
+    name: 'Party Rentals Hyderabad',
+    contactPerson: 'Suresh',
+    phone: '+91 98765 22222',
+    address: 'Madhapur, Hyderabad',
+    category: 'equipment_rental',
+    totalTransactions: 12,
+    totalAmount: 85000,
+    createdAt: '2025-06-01',
+    updatedAt: '2026-02-04',
+  },
+  {
+    id: 'vendor-3',
+    name: 'Quick Transport Services',
+    contactPerson: 'Ramu',
+    phone: '+91 98765 33333',
+    address: 'Kukatpally, Hyderabad',
+    category: 'transport',
+    totalTransactions: 20,
+    totalAmount: 65000,
+    createdAt: '2025-03-01',
+    updatedAt: '2026-02-04',
+  },
+  {
+    id: 'vendor-4',
+    name: 'Fresh Meat Suppliers',
+    contactPerson: 'Mohammed Ali',
+    phone: '+91 98765 44444',
+    address: 'Tolichowki, Hyderabad',
+    category: 'food_costs',
+    totalTransactions: 30,
+    totalAmount: 280000,
+    createdAt: '2025-02-01',
+    updatedAt: '2026-02-04',
+  },
+  {
+    id: 'vendor-5',
+    name: 'HP Gas Agency',
+    contactPerson: 'Ramesh',
+    phone: '+91 98765 55555',
+    address: 'Jubilee Hills, Hyderabad',
+    category: 'utilities',
+    totalTransactions: 24,
+    totalAmount: 76800,
+    createdAt: '2025-01-01',
+    updatedAt: '2026-01-28',
+  },
+];
+
+// Sample Invoices Data
+export const initialInvoices: Invoice[] = [
+  {
+    id: 'inv-1',
+    invoiceNumber: 'INV-2026-001',
+    eventId: '1',
+    clientName: 'Rajesh Sharma',
+    clientPhone: '+91 98765 43210',
+    clientEmail: 'rajesh.sharma@email.com',
+    clientAddress: '123 MG Road, Jubilee Hills, Hyderabad',
+    issueDate: '2026-01-20',
+    dueDate: '2026-02-04',
+    status: 'partial',
+    lineItems: [
+      {
+        id: 'li-1',
+        description: 'Catering Service - 350 Guests (Food)',
+        quantity: 350,
+        unitPrice: 450,
+        totalPrice: 157500,
+        taxType: 'food',
+        taxRate: 5,
+        taxAmount: 7875,
+      },
+      {
+        id: 'li-2',
+        description: 'Equipment & Setup',
+        quantity: 1,
+        unitPrice: 10000,
+        totalPrice: 10000,
+        taxType: 'equipment',
+        taxRate: 18,
+        taxAmount: 1800,
+      },
+    ],
+    subtotal: 167500,
+    totalTaxAmount: 9675,
+    discountAmount: 2175,
+    totalAmount: 175000,
+    paidAmount: 100000,
+    balanceAmount: 75000,
+    payments: [
+      { id: 'pay-1', amount: 50000, date: '2026-01-20', paymentMethod: 'bank_transfer', notes: 'Advance payment' },
+      { id: 'pay-2', amount: 50000, date: '2026-01-30', paymentMethod: 'upi', notes: 'Second installment' },
+    ],
+    notes: 'Wedding reception catering',
+    termsAndConditions: 'Payment due within 15 days of invoice date.',
+    createdAt: '2026-01-20',
+    updatedAt: '2026-01-30',
+  },
+  {
+    id: 'inv-2',
+    invoiceNumber: 'INV-2026-002',
+    eventId: '2',
+    clientName: 'TechCorp Solutions',
+    clientPhone: '+91 99887 76655',
+    clientEmail: 'events@techcorp.com',
+    clientAddress: 'Marriott Hotel, Hitech City, Hyderabad',
+    issueDate: '2026-01-25',
+    dueDate: '2026-02-08',
+    status: 'paid',
+    lineItems: [
+      {
+        id: 'li-3',
+        description: 'Corporate Dinner - 200 Guests (Food)',
+        quantity: 200,
+        unitPrice: 450,
+        totalPrice: 90000,
+        taxType: 'food',
+        taxRate: 5,
+        taxAmount: 4500,
+      },
+    ],
+    subtotal: 90000,
+    totalTaxAmount: 4500,
+    discountAmount: 0,
+    totalAmount: 95000,
+    paidAmount: 95000,
+    balanceAmount: 0,
+    payments: [
+      { id: 'pay-3', amount: 95000, date: '2026-02-01', paymentMethod: 'bank_transfer', notes: 'Full payment' },
+    ],
+    notes: 'Annual corporate dinner',
+    createdAt: '2026-01-25',
+    updatedAt: '2026-02-01',
+  },
+];
+
+// Helper Functions for Accounting
+
+export const getExpenseById = (expenses: Expense[], id: string): Expense | undefined => {
+  return expenses.find((e) => e.id === id);
+};
+
+export const getIncomeById = (incomeList: Income[], id: string): Income | undefined => {
+  return incomeList.find((i) => i.id === id);
+};
+
+export const getInvoiceById = (invoices: Invoice[], id: string): Invoice | undefined => {
+  return invoices.find((i) => i.id === id);
+};
+
+export const getVendorById = (vendors: Vendor[], id: string): Vendor | undefined => {
+  return vendors.find((v) => v.id === id);
+};
+
+export const calculateTotalExpenses = (expenses: Expense[]): number => {
+  return expenses.reduce((sum, e) => sum + e.amount, 0);
+};
+
+export const calculateTotalIncome = (incomeList: Income[]): number => {
+  return incomeList.reduce((sum, i) => sum + i.amount, 0);
+};
+
+export const calculateExpensesByCategory = (expenses: Expense[]): Record<ExpenseCategory, number> => {
+  const categories: ExpenseCategory[] = ['food_costs', 'labor', 'transport', 'equipment_rental', 'venue', 'utilities', 'marketing', 'miscellaneous'];
+  const result = {} as Record<ExpenseCategory, number>;
+  categories.forEach(cat => {
+    result[cat] = expenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0);
+  });
+  return result;
+};
+
+export const calculateIncomeByType = (incomeList: Income[]): Record<IncomeType, number> => {
+  const types: IncomeType[] = ['event_revenue', 'tips', 'equipment_rental', 'consultancy', 'miscellaneous'];
+  const result = {} as Record<IncomeType, number>;
+  types.forEach(type => {
+    result[type] = incomeList.filter(i => i.type === type).reduce((sum, i) => sum + i.amount, 0);
+  });
+  return result;
+};
+
+export const generateInvoiceNumber = (invoices: Invoice[]): string => {
+  const year = new Date().getFullYear();
+  const count = invoices.filter(i => i.invoiceNumber.includes(`INV-${year}`)).length + 1;
+  return `INV-${year}-${count.toString().padStart(3, '0')}`;
+};
+
+export const generateTransactions = (expenses: Expense[], incomeList: Income[], invoices: Invoice[]): Transaction[] => {
+  const transactions: Transaction[] = [];
+
+  // Add expenses as transactions
+  expenses.forEach(e => {
+    transactions.push({
+      id: `txn-exp-${e.id}`,
+      type: 'expense',
+      referenceType: 'expense',
+      referenceId: e.id,
+      description: e.description,
+      amount: e.amount,
+      date: e.date,
+      paymentMethod: e.paymentMethod,
+      createdAt: e.createdAt,
+    });
+  });
+
+  // Add income as transactions
+  incomeList.forEach(i => {
+    transactions.push({
+      id: `txn-inc-${i.id}`,
+      type: 'income',
+      referenceType: 'income',
+      referenceId: i.id,
+      description: i.description,
+      amount: i.amount,
+      date: i.date,
+      paymentMethod: i.paymentMethod,
+      createdAt: i.createdAt,
+    });
+  });
+
+  // Add invoice payments as transactions
+  invoices.forEach(inv => {
+    inv.payments.forEach(p => {
+      transactions.push({
+        id: `txn-inv-${inv.id}-${p.id}`,
+        type: 'income',
+        referenceType: 'invoice_payment',
+        referenceId: inv.id,
+        description: `Payment for ${inv.invoiceNumber} - ${inv.clientName}`,
+        amount: p.amount,
+        date: p.date,
+        paymentMethod: p.paymentMethod,
+        paymentReference: p.paymentReference,
+        createdAt: p.date,
+      });
+    });
+  });
+
+  // Sort by date descending
+  return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+};
+
+export const calculateAccountingStats = (
+  expenses: Expense[],
+  incomeList: Income[],
+  invoices: Invoice[]
+): {
+  totalIncome: number;
+  totalExpenses: number;
+  netProfit: number;
+  profitMargin: number;
+  totalReceivables: number;
+  pendingInvoices: number;
+  overdueInvoices: number;
+} => {
+  const totalExpenses = calculateTotalExpenses(expenses);
+  const totalOtherIncome = calculateTotalIncome(incomeList);
+  const totalInvoiceIncome = invoices.reduce((sum, i) => sum + i.paidAmount, 0);
+  const totalIncome = totalOtherIncome + totalInvoiceIncome;
+  const netProfit = totalIncome - totalExpenses;
+  const profitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
+  const totalReceivables = invoices.reduce((sum, i) => sum + i.balanceAmount, 0);
+  const pendingInvoices = invoices.filter(i => i.status === 'sent' || i.status === 'partial').length;
+  const overdueInvoices = invoices.filter(i => i.status === 'overdue').length;
+
+  return {
+    totalIncome,
+    totalExpenses,
+    netProfit,
+    profitMargin,
+    totalReceivables,
+    pendingInvoices,
+    overdueInvoices,
+  };
+};
+
+export const getExpensesForDateRange = (expenses: Expense[], startDate: string, endDate: string): Expense[] => {
+  return expenses.filter(e => e.date >= startDate && e.date <= endDate);
+};
+
+export const getIncomeForDateRange = (incomeList: Income[], startDate: string, endDate: string): Income[] => {
+  return incomeList.filter(i => i.date >= startDate && i.date <= endDate);
+};
+
+// Tax rates for GST
+export const TAX_RATES = {
+  food: 5,
+  equipment: 18,
+  none: 0,
+};
+
+// Sample Staff Data
+export const staff: Staff[] = [
+  {
+    id: 'staff-1',
+    name: 'Sanjeev Kumar',
+    phone: '+91 98765 12345',
+    role: 'head_chef',
+    employmentType: 'full_time',
+    status: 'active',
+    skills: ['North Indian', 'Tandoor', 'Menu Planning'],
+    experienceYears: 15,
+    specializations: ['Biryani', 'Kebabs'],
+    hourlyRate: 500,
+    rating: 4.8,
+    totalEventsWorked: 150,
+    reliabilityScore: 98,
+    createdAt: '2025-01-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-2',
+    name: 'Rahul Verma',
+    phone: '+91 98765 23456',
+    role: 'chef',
+    employmentType: 'full_time',
+    status: 'active',
+    skills: ['South Indian', 'Chinese'],
+    experienceYears: 8,
+    hourlyRate: 350,
+    rating: 4.5,
+    totalEventsWorked: 120,
+    reliabilityScore: 95,
+    createdAt: '2025-02-15',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-3',
+    name: 'Amit Singh',
+    phone: '+91 98765 34567',
+    role: 'chef',
+    employmentType: 'part_time',
+    status: 'active',
+    skills: ['Tandoor', 'Curries'],
+    experienceYears: 5,
+    hourlyRate: 300,
+    rating: 4.2,
+    totalEventsWorked: 45,
+    reliabilityScore: 90,
+    createdAt: '2025-06-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-4',
+    name: 'Priya Sharma',
+    phone: '+91 98765 45678',
+    role: 'helper',
+    employmentType: 'full_time',
+    status: 'active',
+    skills: ['Cutting', 'Chopping', 'Cleaning'],
+    experienceYears: 3,
+    hourlyRate: 150,
+    rating: 4.6,
+    totalEventsWorked: 200,
+    reliabilityScore: 99,
+    createdAt: '2025-01-10',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-5',
+    name: 'Vikram Raju',
+    phone: '+91 98765 56789',
+    role: 'helper',
+    employmentType: 'part_time',
+    status: 'active',
+    skills: ['Dishwashing', 'Loading'],
+    experienceYears: 2,
+    hourlyRate: 120,
+    rating: 4.0,
+    totalEventsWorked: 50,
+    reliabilityScore: 85,
+    createdAt: '2025-08-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-6',
+    name: 'Raju',
+    phone: '+91 98765 67890',
+    role: 'waiter',
+    employmentType: 'part_time',
+    status: 'active',
+    skills: ['Serving', 'Buffet Management'],
+    experienceYears: 4,
+    hourlyRate: 200,
+    rating: 4.7,
+    totalEventsWorked: 80,
+    reliabilityScore: 92,
+    createdAt: '2025-05-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-7',
+    name: 'Mohan',
+    phone: '+91 98765 78901',
+    role: 'waiter',
+    employmentType: 'freelance',
+    status: 'active',
+    skills: ['Serving', 'Cleaning'],
+    experienceYears: 2,
+    hourlyRate: 180,
+    rating: 4.3,
+    totalEventsWorked: 30,
+    reliabilityScore: 88,
+    createdAt: '2025-09-15',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-8',
+    name: 'Suresh',
+    phone: '+91 98765 89012',
+    role: 'waiter',
+    employmentType: 'freelance',
+    status: 'active',
+    skills: ['Serving'],
+    experienceYears: 1,
+    hourlyRate: 180,
+    rating: 4.1,
+    totalEventsWorked: 15,
+    reliabilityScore: 90,
+    createdAt: '2025-11-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-9',
+    name: 'Mahesh',
+    phone: '+91 98765 90123',
+    role: 'waiter',
+    employmentType: 'freelance',
+    status: 'active',
+    skills: ['Serving'],
+    experienceYears: 3,
+    hourlyRate: 190,
+    rating: 4.4,
+    totalEventsWorked: 40,
+    reliabilityScore: 94,
+    createdAt: '2025-10-01',
+    updatedAt: '2026-02-01',
+  },
+  {
+    id: 'staff-10',
+    name: 'Ganesh',
+    phone: '+91 98765 01234',
+    role: 'cleaner',
+    employmentType: 'part_time',
+    status: 'active',
+    skills: ['Cleaning', 'Dishwashing'],
+    experienceYears: 5,
+    hourlyRate: 100,
+    rating: 4.5,
+    totalEventsWorked: 100,
+    reliabilityScore: 96,
+    createdAt: '2025-01-20',
+    updatedAt: '2026-02-01',
+  },
+];
