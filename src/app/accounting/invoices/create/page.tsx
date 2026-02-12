@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PageLayout from '@/components/PageLayout';
 import {
@@ -17,7 +17,7 @@ import { formatCurrency, TAX_RATES } from '@/lib/data';
 import { events, getDishById } from '@/lib/data';
 import { TaxType, InvoiceLineItem, InvoiceStatus } from '@/lib/types';
 
-export default function CreateInvoicePage() {
+function CreateInvoiceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const eventId = searchParams.get('event');
@@ -436,5 +436,13 @@ export default function CreateInvoicePage() {
         </form>
       </div>
     </PageLayout>
+  );
+}
+
+export default function CreateInvoicePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <CreateInvoiceContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PageLayout from '@/components/PageLayout';
 import {
@@ -21,7 +21,7 @@ import Link from 'next/link';
 import { loadStaff, addStaff, updateStaff, getRoleLabel } from '@/lib/staffStorage';
 import { StaffRole, EmploymentType, StaffStatus } from '@/lib/types';
 
-export default function StaffFormPage() {
+function StaffFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
@@ -418,11 +418,10 @@ export default function StaffFormPage() {
                     key={day.value}
                     type="button"
                     onClick={() => toggleDay(day.value)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      formData.availableDays.includes(day.value)
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                    }`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${formData.availableDays.includes(day.value)
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                      }`}
                   >
                     {day.label}
                   </button>
@@ -591,5 +590,13 @@ export default function StaffFormPage() {
         </form>
       </div>
     </PageLayout>
+  );
+}
+
+export default function StaffFormPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <StaffFormContent />
+    </Suspense>
   );
 }

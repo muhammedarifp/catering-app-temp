@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PageLayout from '@/components/PageLayout';
 import {
@@ -18,7 +18,7 @@ import { loadVendors, addVendor, updateVendor } from '@/lib/accountingStorage';
 import { expenseCategoryLabels } from '@/lib/data';
 import { ExpenseCategory } from '@/lib/types';
 
-export default function VendorFormPage() {
+function VendorFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
@@ -337,5 +337,13 @@ export default function VendorFormPage() {
         </form>
       </div>
     </PageLayout>
+  );
+}
+
+export default function VendorFormPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <VendorFormContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PageLayout from '@/components/PageLayout';
 import {
@@ -19,7 +19,7 @@ import { incomeTypeLabels, paymentMethodLabels } from '@/lib/data';
 import { events } from '@/lib/data';
 import { Income, IncomeType, PaymentMethod } from '@/lib/types';
 
-export default function IncomeFormPage() {
+function IncomeFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
@@ -324,5 +324,13 @@ export default function IncomeFormPage() {
         </form>
       </div>
     </PageLayout>
+  );
+}
+
+export default function IncomeFormPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <IncomeFormContent />
+    </Suspense>
   );
 }

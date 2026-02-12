@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PageLayout from '@/components/PageLayout';
 import {
@@ -30,7 +30,7 @@ import {
 import { events } from '@/lib/data';
 import { Expense, ExpenseCategory, PaymentMethod, RecurrencePattern } from '@/lib/types';
 
-export default function ExpenseFormPage() {
+function ExpenseFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
@@ -429,5 +429,13 @@ export default function ExpenseFormPage() {
         </form>
       </div>
     </PageLayout>
+  );
+}
+
+export default function ExpenseFormPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ExpenseFormContent />
+    </Suspense>
   );
 }
