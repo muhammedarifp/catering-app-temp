@@ -1,0 +1,392 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User Management
+enum UserRole {
+  SUPER_ADMIN
+  MANAGER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String   // In production, this should be hashed
+  role      UserRole @default(MANAGER)
+
+  // Manager specific fields
+  pageAccess    String[]  @default([]) // Array of page paths they can access
+  canCreateEvents Boolean @default(false)
+  canManageEnquiries Boolean @default(false)
+  canManageDishes Boolean @default(false)
+  canManageExpenses Boolean @default(false)
+  canViewReports Boolean @default(false)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdEnquiries Enquiry[] @relation("CreatedBy")
+  createdEvents    Event[]   @relation("CreatedBy")
+  createdTodos     Todo[]    @relation("CreatedBy")
+
+  @@index([email])
+}
+
+// Enquiry Management (Quotations)
+enum EnquiryStatus {
+  PENDING
+  LOST
+  SUCCESS
+}
+
+model Enquiry {
+  id            String        @id @default(cuid())
+
+  // Client Information
+  clientName    String
+  clientContact String
+
+  // Event Details
+  peopleCount   Int
+  location      String
+  eventDate     DateTime
+  eventTime     String
+
+  // Quotation Details
+  quotationNumber String     @unique
+  totalAmount     Decimal    @default(0)
+
+  // Status
+  status        EnquiryStatus @default(PENDING)
+
+  // Timestamps
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  dishes        EnquiryDish[]
+  services      EnquiryService[]
+  updates       EnquiryUpdate[]
+  createdBy     User          @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById   String
+
+  // Converted event (if status is SUCCESS)
+  convertedEvent Event?       @relation("ConvertedFromEnquiry")
+
+  @@index([status])
+  @@index([eventDate])
+  @@index([createdAt])
+}
+
+model EnquiryDish {
+  id         String  @id @default(cuid())
+  enquiryId  String
+  dishId     String
+  quantity   Int
+  pricePerPlate Decimal
+
+  enquiry    Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  dish       Dish    @relation(fields: [dishId], references: [id])
+
+  @@index([enquiryId])
+}
+
+model EnquiryService {
+  id          String  @id @default(cuid())
+  enquiryId   String
+  serviceName String
+  description String?
+  price       Decimal
+
+  enquiry     Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId])
+}
+
+model EnquiryUpdate {
+  id          String   @id @default(cuid())
+  enquiryId   String
+  updateType  String   // "STATUS_CHANGE", "DETAILS_MODIFIED", "NOTE_ADDED"
+  description String
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
+
+  enquiry     Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId])
+  @@index([createdAt])
+}
+
+// Event Management
+enum EventType {
+  LOCAL_ORDER   // Small orders (e.g., 10kg rice)
+  MAIN_EVENT    // Big events with food and services
+}
+
+enum EventStatus {
+  UPCOMING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Event {
+  id              String       @id @default(cuid())
+
+  // Basic Information
+  name            String
+  eventType       EventType
+  status          EventStatus  @default(UPCOMING)
+
+  // Client Information
+  clientName      String
+  clientContact   String
+
+  // Event Details
+  location        String
+  eventDate       DateTime
+  eventTime       String
+  guestCount      Int          @default(0)
+
+  // Financial
+  totalAmount     Decimal      @default(0)
+  paidAmount      Decimal      @default(0)
+  balanceAmount   Decimal      @default(0)
+
+  // Additional Details
+  notes           String?
+
+  // Timestamps
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Relations
+  dishes          EventDish[]
+  services        EventService[]
+  expenses        OtherExpense[]
+  groceryItems    GroceryPurchaseItem[]
+  invoices        Invoice[]
+
+  createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById     String
+
+  // Link to original enquiry (if converted)
+  enquiryId       String?      @unique
+  enquiry         Enquiry?     @relation("ConvertedFromEnquiry", fields: [enquiryId], references: [id])
+
+  @@index([eventDate])
+  @@index([eventType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model EventDish {
+  id            String  @id @default(cuid())
+  eventId       String
+  dishId        String
+  quantity      Int
+  pricePerPlate Decimal
+
+  event         Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  dish          Dish    @relation(fields: [dishId], references: [id])
+
+  @@index([eventId])
+}
+
+model EventService {
+  id          String  @id @default(cuid())
+  eventId     String
+  serviceName String
+  description String?
+  price       Decimal
+
+  event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+// Dish Management
+model Dish {
+  id                      String   @id @default(cuid())
+  name                    String
+  description             String?
+  category                String   // e.g., "Appetizer", "Main Course", "Dessert"
+  pricePerPlate           Decimal  // Deprecated - use sellingPricePerPlate
+  estimatedCostPerPlate   Decimal  @default(0)
+  sellingPricePerPlate    Decimal  @default(0)
+  isVeg                   Boolean  @default(true)
+
+  // Image (optional)
+  imageUrl                String?
+
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  // Relations
+  ingredients             DishIngredient[]
+  enquiryDishes           EnquiryDish[]
+  eventDishes             EventDish[]
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model DishIngredient {
+  id              String  @id @default(cuid())
+  dishId          String
+  ingredientName  String
+  quantity        Decimal
+  unit            String  // kg, liters, pieces, etc.
+
+  dish            Dish    @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@index([dishId])
+}
+
+// Other Expenses
+enum ExpenseCategory {
+  DELIVERY
+  MANPOWER
+  TRANSPORTATION
+  EQUIPMENT_RENTAL
+  PACKAGING
+  MISCELLANEOUS
+}
+
+model OtherExpense {
+  id          String          @id @default(cuid())
+  eventId     String
+  category    ExpenseCategory
+  description String
+  amount      Decimal
+  date        DateTime        @default(now())
+
+  event       Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([eventId])
+  @@index([category])
+  @@index([date])
+}
+
+// Grocery Purchase List
+model GroceryPurchase {
+  id          String                @id @default(cuid())
+  purchaseDate DateTime
+  notes       String?
+  totalAmount Decimal               @default(0)
+
+  items       GroceryPurchaseItem[]
+
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([purchaseDate])
+}
+
+model GroceryPurchaseItem {
+  id              String          @id @default(cuid())
+  purchaseId      String
+  eventId         String?
+  ingredientName  String
+  quantity        Decimal
+  unit            String
+  pricePerUnit    Decimal
+  totalPrice      Decimal
+
+  purchase        GroceryPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  event           Event?          @relation(fields: [eventId], references: [id])
+
+  @@index([purchaseId])
+  @@index([eventId])
+}
+
+// Invoice Management
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  eventId         String
+
+  // Amounts
+  subtotal        Decimal       @default(0)
+  tax             Decimal       @default(0)
+  totalAmount     Decimal       @default(0)
+  paidAmount      Decimal       @default(0)
+  balanceAmount   Decimal       @default(0)
+
+  // Dates
+  issueDate       DateTime      @default(now())
+  dueDate         DateTime?
+  paidDate        DateTime?
+
+  status          InvoiceStatus @default(DRAFT)
+  notes           String?
+
+  event           Event         @relation(fields: [eventId], references: [id])
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([eventId])
+  @@index([invoiceNumber])
+  @@index([status])
+}
+
+// Todo Management
+model Todo {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  isCompleted Boolean  @default(false)
+  priority    String   @default("NORMAL") // HIGH, NORMAL, LOW
+  dueDate     DateTime?
+
+  // Link to event (optional)
+  eventId     String?
+
+  createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isCompleted])
+  @@index([dueDate])
+}
+
+// Notification Settings
+model NotificationSetting {
+  id                      String  @id @default(cuid())
+
+  // Global notification toggles
+  invoiceGenerated        Boolean @default(true)
+  eventCreated            Boolean @default(true)
+  eventStatusChanged      Boolean @default(true)
+  enquiryStatusChanged    Boolean @default(true)
+  paymentReceived         Boolean @default(true)
+  lowStockAlert           Boolean @default(true)
+
+  updatedAt               DateTime @updatedAt
+
+  @@map("notification_settings")
+}

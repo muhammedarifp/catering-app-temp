@@ -1,232 +1,431 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  Plus,
-  Search,
-  Filter,
   CalendarDays,
-  MapPin,
+  Plus,
+  Filter,
+  Search,
+  Eye,
+  Edit,
+  ShoppingCart,
+  Upload,
+  Download,
   Users,
+  MapPin,
+  IndianRupee,
+  Calendar,
   Clock,
-  ChevronRight,
-  ChefHat,
-  Store,
-  MoreHorizontal
-} from 'lucide-react';
-import PageLayout from '@/components/PageLayout';
-import { events, formatCurrency, formatDate, eventTypeLabels } from '@/lib/data';
-import { Event, EventStatus, EventType } from '@/lib/types';
-import Link from 'next/link';
-
-const statusStyles: Record<EventStatus, string> = {
-  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-100 ring-emerald-500/10',
-  pending: 'bg-amber-50 text-amber-700 border-amber-100 ring-amber-500/10',
-  completed: 'bg-slate-50 text-slate-700 border-slate-100 ring-slate-500/10',
-  cancelled: 'bg-red-50 text-red-700 border-red-100 ring-red-500/10',
-};
-
-const eventTypeStyles: Record<EventType, string> = {
-  wedding: 'text-pink-600 bg-pink-50 border-pink-100',
-  corporate: 'text-blue-600 bg-blue-50 border-blue-100',
-  birthday: 'text-purple-600 bg-purple-50 border-purple-100',
-  engagement: 'text-rose-600 bg-rose-50 border-rose-100',
-  anniversary: 'text-orange-600 bg-orange-50 border-orange-100',
-  other: 'text-slate-600 bg-slate-50 border-slate-100',
-};
+} from 'lucide-react'
+import PageLayout from '@/components/PageLayout'
+import BulkUploadModal from '@/components/BulkUploadModal'
+import InvoiceDownloadButton from '@/components/InvoiceDownloadButton'
+import { getEvents, getEventsForGroceryPurchase, bulkUploadEvents } from '@/lib/actions/events'
+import { validateEventsData, transformEventsDataForUpload } from '@/lib/excel'
 
 export default function EventsPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<EventStatus | 'all'>('all');
-  const [typeFilter, setTypeFilter] = useState<EventType | 'all'>('all');
-  const [showFilters, setShowFilters] = useState(false);
+  const router = useRouter()
+  const [events, setEvents] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'all' | 'local' | 'main'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [showGroceryModal, setShowGroceryModal] = useState(false)
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
+  const [groceryEvents, setGroceryEvents] = useState<any[]>([])
+
+  // TODO: Replace with actual user ID from auth
+  const userId = 'temp-user-id'
+
+  useEffect(() => {
+    loadEvents()
+  }, [])
+
+  async function loadEvents() {
+    setLoading(true)
+    try {
+      const result = await getEvents()
+      if (result.success && result.data) {
+        setEvents(result.data)
+      }
+    } catch (error) {
+      console.error('Failed to load events:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleOpenGroceryList = async () => {
+    const result = await getEventsForGroceryPurchase()
+    if (result.success && result.data) {
+      setGroceryEvents(result.data)
+      setShowGroceryModal(true)
+    }
+  }
+
+  const handleBulkUpload = async (data: any[]) => {
+    const transformedData = transformEventsDataForUpload(data, userId)
+    const result = await bulkUploadEvents(transformedData)
+
+    if (result.success) {
+      loadEvents()
+    }
+
+    return result
+  }
 
   const filteredEvents = events.filter((event) => {
-    const matchesSearch =
-      event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || event.status === statusFilter;
-    const matchesType = typeFilter === 'all' || event.eventType === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+    // Tab filter
+    if (activeTab === 'local' && event.eventType !== 'LOCAL_ORDER') return false
+    if (activeTab === 'main' && event.eventType !== 'MAIN_EVENT') return false
 
-  const sortedEvents = [...filteredEvents].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+    // Status filter
+    if (statusFilter !== 'all' && event.status !== statusFilter) return false
+
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase()
+      return (
+        event.name.toLowerCase().includes(search) ||
+        event.clientName.toLowerCase().includes(search) ||
+        event.location.toLowerCase().includes(search)
+      )
+    }
+
+    return true
+  })
+
+  const stats = {
+    all: events.length,
+    local: events.filter((e) => e.eventType === 'LOCAL_ORDER').length,
+    main: events.filter((e) => e.eventType === 'MAIN_EVENT').length,
+    upcoming: events.filter((e) => e.status === 'UPCOMING').length,
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'UPCOMING':
+        return 'bg-blue-50 text-blue-700 border-blue-200'
+      case 'IN_PROGRESS':
+        return 'bg-purple-50 text-purple-700 border-purple-200'
+      case 'COMPLETED':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'CANCELLED':
+        return 'bg-red-50 text-red-700 border-red-200'
+      default:
+        return 'bg-slate-50 text-slate-700 border-slate-200'
+    }
+  }
 
   return (
     <PageLayout currentPath="/events">
-      <div className="min-h-screen bg-slate-50/50 pb-20">
-
-        {/* Header Section */}
-        <div className="bg-white border-b border-slate-200 sticky top-0 z-20">
-          <div className="max-w-5xl mx-auto px-4 lg:px-8 py-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Events Registry</h1>
-                <p className="text-sm text-slate-500 mt-1">Manage catering schedules and client orders</p>
-              </div>
-              <Link
-                href="/events/create"
-                className="flex items-center justify-center gap-2 bg-slate-900 px-5 py-2.5 rounded-xl text-sm font-semibold text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 active:scale-95"
-              >
-                <Plus className="h-4 w-4" />
-                <span>New Event</span>
-              </Link>
+      <div className="min-h-screen bg-slate-50/50 pb-12">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 lg:py-12 space-y-8">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Event Management
+              </p>
+              <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight">
+                Events
+              </h1>
             </div>
 
-            {/* Filter Bar */}
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search by client, location, or event name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all"
-                />
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={handleOpenGroceryList}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-slate-900 text-slate-900 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Grocery List
+              </button>
+              <button
+                onClick={() => setShowBulkUploadModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all">
+                <Upload className="w-4 h-4" />
+                Upload Events
+              </button>
+              <button
+                onClick={() => router.push('/events/create')}
+                className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-slate-900/10"
+              >
+                <Plus className="w-5 h-5" />
+                New Event
+              </button>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'All Events', value: stats.all, color: 'indigo' },
+              { label: 'Local Orders', value: stats.local, color: 'blue' },
+              { label: 'Main Events', value: stats.main, color: 'purple' },
+              { label: 'Upcoming', value: stats.upcoming, color: 'emerald' },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200"
+              >
+                <p className="text-sm font-medium text-slate-500 mb-1">{stat.label}</p>
+                <p className="text-3xl font-black text-slate-900">{stat.value}</p>
               </div>
-              <div className="flex gap-3 overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
+            ))}
+          </div>
+
+          {/* Tabs and Filters */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+            {/* Tabs */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { value: 'all', label: 'All Events' },
+                { value: 'local', label: 'Local Orders' },
+                { value: 'main', label: 'Main Events' },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setActiveTab(tab.value as any)}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === tab.value
+                      ? 'bg-slate-900 text-white shadow-md'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex-1 min-w-50">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search events, clients, locations..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-slate-400" />
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as EventStatus | 'all')}
-                  className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer min-w-[140px]"
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
                 >
                   <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as EventType | 'all')}
-                  className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer min-w-[140px]"
-                >
-                  <option value="all">All Types</option>
-                  <option value="wedding">Wedding</option>
-                  <option value="corporate">Corporate</option>
-                  <option value="birthday">Birthday</option>
-                  <option value="engagement">Engagement</option>
-                  <option value="anniversary">Anniversary</option>
-                  <option value="other">Other</option>
+                  <option value="UPCOMING">Upcoming</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="CANCELLED">Cancelled</option>
                 </select>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* List Content */}
-        <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium text-slate-500">
-              Showing {sortedEvents.length} event{sortedEvents.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-
+          {/* Events List */}
           <div className="space-y-4">
-            {sortedEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
+            {filteredEvents.length > 0 ? (
+              filteredEvents.map((event) => (
+                <div
+                  key={event.id}
+                  className="bg-white rounded-3xl p-6 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 hover:shadow-md transition-all group"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start gap-4 flex-1">
+                      <div className="p-3 bg-indigo-50 rounded-xl">
+                        <CalendarDays className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-xl font-bold text-slate-900">{event.name}</h3>
+                          <span
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold border ${getStatusColor(
+                              event.status
+                            )}`}
+                          >
+                            {event.status}
+                          </span>
+                          <span
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold ${event.eventType === 'LOCAL_ORDER'
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-purple-100 text-purple-700'
+                              }`}
+                          >
+                            {event.eventType === 'LOCAL_ORDER' ? 'Local Order' : 'Main Event'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-600 font-medium mb-3">
+                          Client: {event.clientName}
+                        </p>
 
-            {sortedEvents.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
-                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                  <Search className="w-5 h-5 text-slate-400" />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <Calendar className="w-4 h-4 text-slate-400" />
+                            {new Date(event.eventDate).toLocaleDateString()}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <Clock className="w-4 h-4 text-slate-400" />
+                            {event.eventTime}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <Users className="w-4 h-4 text-slate-400" />
+                            {event.guestCount} guests
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <MapPin className="w-4 h-4 text-slate-400" />
+                            {event.location}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <InvoiceDownloadButton
+                        eventId={event.id}
+                        eventName={event.name}
+                        className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Financial Info */}
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Total Amount</p>
+                        <p className="text-lg font-bold text-slate-900 flex items-center gap-1">
+                          <IndianRupee className="w-4 h-4" />
+                          {Number(event.totalAmount).toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Paid</p>
+                        <p className="text-lg font-bold text-emerald-600 flex items-center gap-1">
+                          <IndianRupee className="w-4 h-4" />
+                          {Number(event.paidAmount).toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Balance</p>
+                        <p className="text-lg font-bold text-amber-600 flex items-center gap-1">
+                          <IndianRupee className="w-4 h-4" />
+                          {Number(event.balanceAmount).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {event.balanceAmount > 0 && (
+                      <button className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition-colors">
+                        Collect Payment
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <h3 className="text-slate-900 font-medium">No events found</h3>
-                <p className="text-slate-500 text-sm mt-1">Try adjusting your filters or search query.</p>
+              ))
+            ) : (
+              <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-slate-200">
+                <CalendarDays className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-slate-900 mb-2">No events found</h3>
+                <p className="text-slate-500 max-w-md mx-auto">
+                  {searchTerm || statusFilter !== 'all'
+                    ? 'Try adjusting your filters to see more events.'
+                    : 'Get started by creating your first event or importing existing ones.'}
+                </p>
               </div>
             )}
           </div>
         </div>
-
       </div>
-    </PageLayout>
-  );
-}
 
-function EventCard({ event }: { event: Event }) {
-  return (
-    <Link
-      href={`/events/${event.id}`}
-      className="group block bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 overflow-hidden"
-    >
-      <div className="p-5 lg:p-6">
-        <div className="flex flex-col md:flex-row md:items-center gap-6">
-
-          {/* Date Block (Left) - Premium look */}
-          <div className="flex-shrink-0 flex md:flex-col items-center gap-3 md:gap-1 md:w-20 md:border-r md:border-slate-100 md:pr-6">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}</span>
-            <span className="text-2xl md:text-3xl font-bold text-slate-900">{new Date(event.date).getDate()}</span>
-            <span className="text-xs font-medium text-slate-400">{new Date(event.date).toLocaleDateString('en-US', { weekday: 'short' })}</span>
-          </div>
-
-          {/* Main Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${statusStyles[event.status]} ring-1 ring-inset`}>
-                {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
-              </span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${eventTypeStyles[event.eventType]}`}>
-                {eventTypeLabels[event.eventType]}
-              </span>
-              {/* Service Type Icon */}
-              {event.serviceType === 'per_plate' ? (
-                <span className="ml-auto md:ml-0 inline-flex items-center gap-1 text-xs text-slate-400" title="Per Plate Service">
-                  <Store className="h-3 w-3" /> Plate
-                </span>
-              ) : (
-                <span className="ml-auto md:ml-0 inline-flex items-center gap-1 text-xs text-slate-400" title="Buffet Service">
-                  <ChefHat className="h-3 w-3" /> Buffet
-                </span>
-              )}
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
-              {event.name}
-            </h3>
-            <p className="text-sm text-slate-500 mb-3">{event.client}</p>
-
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-slate-400" />
-                <span>{event.time}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-slate-400" />
-                <span>{event.guests} Guests</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-slate-400" />
-                <span className="truncate max-w-[200px]">{event.location}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Financials & Action (Right) */}
-          <div className="flex items-center justify-between md:flex-col md:items-end md:gap-1 pt-4 border-t border-slate-100 md:pt-0 md:border-t-0 pl-1">
-            <div className="text-right">
-              <p className="text-lg font-semibold text-slate-900">{formatCurrency(event.amount)}</p>
-              {event.paidAmount < event.amount ? (
-                <p className="text-xs font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded inline-block mt-1">
-                  Due: {formatCurrency(event.amount - event.paidAmount)}
+      {/* Grocery Purchase Modal */}
+      {showGroceryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-8 py-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Grocery Purchase List</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  Auto-selected: Tomorrow's events ({groceryEvents.length} events)
                 </p>
+              </div>
+              <button
+                onClick={() => setShowGroceryModal(false)}
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8">
+              {groceryEvents.length > 0 ? (
+                <div className="space-y-6">
+                  {groceryEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="p-5 bg-slate-50 rounded-2xl border border-slate-200"
+                    >
+                      <h3 className="font-bold text-slate-900 mb-3">{event.name}</h3>
+                      <div className="space-y-2">
+                        {event.dishes && event.dishes.map((dish: any) => (
+                          <div key={dish.id} className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-slate-900">{dish.dish.name}</p>
+                              <p className="text-sm text-slate-500">
+                                Qty: {dish.quantity} plates
+                              </p>
+                            </div>
+                            {dish.dish.ingredients && dish.dish.ingredients.length > 0 && (
+                              <div className="text-right text-sm text-slate-600">
+                                {dish.dish.ingredients.length} ingredients
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="flex items-center justify-end gap-3 pt-4">
+                    <button className="px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium flex items-center gap-2">
+                      <Download className="w-4 h-4" />
+                      Download Excel
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <div className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded mt-1 ml-auto w-fit">
-                  <span>Paid</span>
+                <div className="text-center py-12 text-slate-400">
+                  <ShoppingCart className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-semibold text-slate-900 mb-2">
+                    No events for tomorrow
+                  </p>
+                  <p className="text-sm">Select events manually to generate a grocery list.</p>
                 </div>
               )}
             </div>
-            <div className="md:mt-4 p-2 text-slate-300 md:bg-slate-50 rounded-full md:group-hover:bg-blue-50 md:group-hover:text-blue-600 transition-colors">
-              <ChevronRight className="w-5 h-5" />
-            </div>
           </div>
-
         </div>
-      </div>
-    </Link>
-  );
+      )}
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={showBulkUploadModal}
+        onClose={() => setShowBulkUploadModal(false)}
+        type="events"
+        onUpload={handleBulkUpload}
+        validateData={validateEventsData}
+      />
+    </PageLayout>
+  )
 }

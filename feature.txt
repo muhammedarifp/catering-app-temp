@@ -1,0 +1,220 @@
+# Catering Management System - Feature Requirements
+
+## 1. Home Page / Dashboard
+
+### Statistics Cards (Minimal)
+- **Total Orders**: Count of all events
+- **Cash Income**: Total revenue from paid amounts
+- **Total Enquiries**: Count of pending quotations
+
+### Todo List Section
+- Display upcoming events automatically
+- Admin can add custom todo items
+- Mark todos as complete/incomplete
+- Priority levels for custom todos
+
+### Add Enquiry (Quotation) Feature
+**Form Fields:**
+- Client Name
+- Contact Number
+- People Count
+- Event Location
+- Event Date & Time
+- Dishes Selection (with quantity)
+- Services Selection (with prices)
+
+**Enquiry Management:**
+- Create quotation with unique quotation number
+- List all enquiries/quotations
+- Click on quotation to view full details
+- Track updates history (changes made, status changes)
+- Status options:
+  - Pending
+  - Lost
+  - Success
+- **Auto-conversion**: When status = "Success" → Convert to Main Event or Local Order
+
+---
+
+## 2. Events Management
+
+### Sidebar Navigation
+- Home
+- Events
+  - All Events (view all)
+  - Local Orders
+  - Main Events
+
+### Event Types
+
+#### Local Orders
+- Small orders (not full events)
+- Examples: "10kg rice only", "50 plates biryani"
+- Simpler structure than main events
+
+#### Main Events
+- Large events with full catering
+- Include food + services
+- Full event management
+
+### Event Page Features
+
+#### Grocery Purchase List
+- **Auto-select**: Tomorrow's events automatically selected
+- **Manual selection**: Admin can select future upcoming events
+- Generate consolidated ingredients list from selected events
+- Show:
+  - Dish ingredients
+  - Price per plate
+  - Quantities needed
+- Excel-like component:
+  - View/edit list
+  - Add custom items manually
+  - Download grocery list as Excel/PDF
+
+#### Event Upload Options
+- Single event upload
+- Bulk events upload (Excel/CSV)
+- Support for:
+  - Success events (completed)
+  - Failed events (cancelled)
+  - Any status
+
+#### Invoice Download
+- When quotation → success → converted to event
+- Download invoice with:
+  - Event details
+  - Itemized list (dishes, services)
+  - Amount breakdown
+  - Payment status
+  - Client information
+
+---
+
+## 3. Dishes Management
+
+### Current Status
+- Page exists but needs revamp
+
+### Features Needed
+- **List View**: Display all company dishes
+- **Add Dish**:
+  - Single dish creation form
+  - Bulk upload option (Excel/CSV)
+- **Dish Details**:
+  - Name, category, description
+  - Price per plate
+  - Ingredients with quantities
+  - Vegetarian/Non-vegetarian indicator
+  - Image (optional)
+  - Cost calculation
+- **Edit/Delete** dishes
+- **Filter** by category, veg/non-veg
+- **Search** functionality
+
+---
+
+## 4. Other Expenses Page
+
+### Introduction Section
+- Small info banner explaining:
+  - "Other expenses can be added to Local Events and Main Events"
+  - Examples: Delivery charges, manpower, equipment rental
+
+### Events List
+- Display all events (local + main)
+- For each event, show current expenses
+
+### Add Expense Feature
+- Select event
+- Excel-like component:
+  - Expense type (delivery, manpower, etc.)
+  - Amount
+  - Description
+  - Date
+  - Add custom expense rows
+- **Download** expense report
+- Save expenses linked to event
+
+### Expense Categories
+- Delivery charges
+- Manpower/Labor
+- Equipment rental
+- Transportation
+- Miscellaneous
+
+---
+
+## 5. Settings Page
+
+### User Management
+
+#### User Types
+1. **Super Admin**
+   - Full system access
+   - All pages accessible
+   - All features enabled
+
+2. **Managers**
+   - Limited access (configured by Super Admin)
+   - Only access granted pages
+   - Restricted features based on permissions
+
+#### Manager Management Section
+**Features:**
+- Create new managers
+- Edit manager details
+- Set page access permissions:
+  - Dashboard access
+  - Events management
+  - Enquiries management
+  - Dishes management
+  - Expenses management
+  - Reports access
+  - Settings access (limited)
+- Set feature permissions:
+  - Can create events
+  - Can approve quotations
+  - Can manage expenses
+  - Can view reports
+  - Can download invoices
+- Activate/Deactivate manager accounts
+
+### Notification Configuration
+
+#### Global Notification Settings
+- Enable/disable notifications globally
+- Individual notification toggles:
+  - Invoice generated
+  - Quotation created
+  - Quotation status changed
+  - Event created
+  - Event reminder (1 day before)
+  - Payment received
+  - Low stock alert
+- Notification channels:
+  - Email notifications
+  - SMS notifications (optional)
+  - In-app notifications
+
+---
+
+## Implementation Priority
+
+### Phase 1 (Core Features)
+1. ✅ Home page with stats and enquiries
+2. ✅ Basic event management
+3. ✅ Dishes CRUD operations
+4. Quotation to Event conversion
+
+### Phase 2 (Advanced Features)
+1. Grocery purchase list
+2. Invoice generation & download
+3. Other expenses management
+4. Bulk upload features
+
+### Phase 3 (Administration)
+1. User management (Super Admin & Managers)
+2. Permission system
+3. Notification configuration
+4. Reports and analytics 

@@ -67,7 +67,7 @@ export default function ClientProfilePage({
 
                 {/* Header Profile Card */}
                 <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden mb-8">
-                    <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 px-6 py-8 text-white">
+                    <div className="bg-linear-to-r from-zinc-900 to-zinc-800 px-6 py-8 text-white">
                         <div className="flex flex-col md:flex-row md:items-center gap-6">
                             <div className="h-20 w-20 rounded-full bg-white/10 flex items-center justify-center text-3xl font-bold backdrop-blur-sm border border-white/20">
                                 {clientDetails.client.charAt(0)}

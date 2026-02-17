@@ -1,13 +1,47 @@
 'use client';
 
 import PageLayout from '@/components/PageLayout';
-import { dishes } from '@/lib/data';
-import { Plus, Search, Edit, Trash2, ChefHat, ArrowRight } from 'lucide-react';
+import BulkUploadModal from '@/components/BulkUploadModal';
+import { Plus, Search, Edit, Trash2, Upload, ChefHat, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getDishes, bulkUploadDishes } from '@/lib/actions/dishes';
+import { validateDishesData, transformDishesDataForUpload } from '@/lib/excel';
 
 export default function DishesPage() {
     const [searchQuery, setSearchQuery] = useState('');
+    const [dishes, setDishes] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+
+    useEffect(() => {
+        loadDishes();
+    }, []);
+
+    async function loadDishes() {
+        setLoading(true);
+        try {
+            const result = await getDishes();
+            if (result.success && result.data) {
+                setDishes(result.data);
+            }
+        } catch (error) {
+            console.error('Failed to load dishes:', error);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    const handleBulkUpload = async (data: any[]) => {
+        const transformedData = transformDishesDataForUpload(data);
+        const result = await bulkUploadDishes(transformedData);
+
+        if (result.success) {
+            loadDishes();
+        }
+
+        return result;
+    };
 
     const filteredDishes = dishes.filter(dish =>
         dish.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -22,13 +56,22 @@ export default function DishesPage() {
                         <h1 className="text-2xl font-semibold text-zinc-900">Dishes & Recipes</h1>
                         <p className="text-sm text-zinc-500">Manage your culinary catalog and costs</p>
                     </div>
-                    <Link
-                        href="/dishes/create"
-                        className="flex items-center justify-center gap-2 bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-                    >
-                        <Plus className="h-4 w-4" />
-                        New Dish
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setShowBulkUploadModal(true)}
+                            className="flex items-center justify-center gap-2 bg-white border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                        >
+                            <Upload className="h-4 w-4" />
+                            Bulk Upload
+                        </button>
+                        <Link
+                            href="/dishes/create"
+                            className="flex items-center justify-center gap-2 bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+                        >
+                            <Plus className="h-4 w-4" />
+                            New Dish
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Filters */}
@@ -116,6 +159,15 @@ export default function DishesPage() {
                     )}
                 </div>
             </div>
+
+            {/* Bulk Upload Modal */}
+            <BulkUploadModal
+                isOpen={showBulkUploadModal}
+                onClose={() => setShowBulkUploadModal(false)}
+                type="dishes"
+                onUpload={handleBulkUpload}
+                validateData={validateDishesData}
+            />
         </PageLayout>
     );
 }

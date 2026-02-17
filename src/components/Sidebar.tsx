@@ -14,19 +14,26 @@ import {
   Calculator,
   Wallet,
   UserCog,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
+  { icon: LayoutDashboard, label: 'Home', href: '/' },
   { icon: CalendarDays, label: 'Events', href: '/events' },
   { icon: ChefHat, label: 'Dishes', href: '/dishes' },
+  { icon: Wallet, label: 'Other Expenses', href: '/other-expenses' },
+  { icon: Settings, label: 'Settings', href: '/settings' },
+];
+
+// Hidden but kept in code for future use
+const hiddenNavItems = [
   { icon: Package, label: 'Inventory', href: '/inventory' },
   { icon: UserCog, label: 'Staff', href: '/staff' },
   { icon: Users, label: 'Clients', href: '/clients' },
   { icon: Wallet, label: 'Accounting', href: '/accounting' },
   { icon: FileText, label: 'Invoices', href: '/invoices' },
   { icon: Calculator, label: 'Tools', href: '/tools' },
-  { icon: Settings, label: 'Settings', href: '/settings' },
 ];
 
 interface SidebarProps {
@@ -35,6 +42,7 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPath = '/' }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   return (
     <>
@@ -102,17 +110,23 @@ export default function Sidebar({ currentPath = '/' }: SidebarProps) {
           </nav>
 
           {/* User Profile */}
-          <div className="p-4 border-t border-zinc-100">
-            <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-zinc-200 to-zinc-100 border border-zinc-200 text-sm font-bold text-zinc-700">
-                AK
+          <div className="p-4 border-t border-zinc-100 space-y-2">
+            <div className="flex items-center gap-3 p-2 rounded-xl bg-zinc-50">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-tr from-zinc-700 to-zinc-900 border border-zinc-800 text-sm font-bold text-white">
+                {user?.name.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-zinc-900 truncate">Arif Khan</p>
-                <p className="text-xs text-zinc-500 truncate">arif@caterpro.com</p>
+                <p className="text-sm font-semibold text-zinc-900 truncate">{user?.name || 'User'}</p>
+                <p className="text-xs text-zinc-500 truncate">{user?.email || ''}</p>
               </div>
-              <Settings className="h-4 w-4 text-zinc-400" />
             </div>
+            <button
+              onClick={logout}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition-all"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
           </div>
         </div>
       </aside>
