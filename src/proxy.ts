@@ -14,7 +14,7 @@ const protectedRoutes = [
 // Public routes that don't require authentication
 const publicRoutes = ['/login', '/api/auth/login']
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Check if route is protected
