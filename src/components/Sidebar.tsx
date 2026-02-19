@@ -17,6 +17,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMemo } from 'react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Home', href: '/' },
@@ -42,7 +43,12 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPath = '/' }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, hasAccess } = useAuth();
+
+  const visibleNavItems = useMemo(() => {
+    if (!user || user.role === 'SUPER_ADMIN') return navItems;
+    return navItems.filter(item => hasAccess(item.href));
+  }, [user, hasAccess]);
 
   return (
     <>
@@ -90,7 +96,7 @@ export default function Sidebar({ currentPath = '/' }: SidebarProps) {
           {/* Navigation */}
           <nav className="flex-1 space-y-1 px-3 py-6">
             <p className="px-3 text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Platform</p>
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive = currentPath === item.href;
               return (
                 <a

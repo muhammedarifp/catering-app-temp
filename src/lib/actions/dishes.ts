@@ -114,12 +114,27 @@ export async function updateDish(
     isVeg?: boolean
     imageUrl?: string
     isActive?: boolean
+    ingredients?: Array<{ ingredientName: string; quantity: number; unit: string }>
   }
 ) {
   try {
+    const { ingredients, ...dishData } = data
+
     const dish = await prisma.dish.update({
       where: { id },
-      data,
+      data: {
+        ...dishData,
+        ...(ingredients !== undefined && {
+          ingredients: {
+            deleteMany: {},
+            create: ingredients.map(i => ({
+              ingredientName: i.ingredientName,
+              quantity: i.quantity,
+              unit: i.unit,
+            })),
+          },
+        }),
+      },
       include: {
         ingredients: true,
       },

@@ -4,6 +4,45 @@ import { revalidatePath } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { EventType, EventStatus } from '@prisma/client'
 
+function serializeEvent(event: any): any {
+  return {
+    ...event,
+    totalAmount: Number(event.totalAmount),
+    paidAmount: Number(event.paidAmount),
+    balanceAmount: Number(event.balanceAmount),
+    dishes: event.dishes?.map((d: any) => ({
+      ...d,
+      pricePerPlate: Number(d.pricePerPlate),
+      dish: d.dish ? {
+        ...d.dish,
+        pricePerPlate: Number(d.dish.pricePerPlate),
+        estimatedCostPerPlate: Number(d.dish.estimatedCostPerPlate),
+        sellingPricePerPlate: Number(d.dish.sellingPricePerPlate),
+        ingredients: d.dish.ingredients?.map((i: any) => ({
+          ...i,
+          quantity: Number(i.quantity),
+        })),
+      } : undefined,
+    })),
+    services: event.services?.map((s: any) => ({
+      ...s,
+      price: Number(s.price),
+    })),
+    expenses: event.expenses?.map((e: any) => ({
+      ...e,
+      amount: Number(e.amount),
+    })),
+    invoices: event.invoices?.map((inv: any) => ({
+      ...inv,
+      subtotal: Number(inv.subtotal),
+      tax: Number(inv.tax),
+      totalAmount: Number(inv.totalAmount),
+      paidAmount: Number(inv.paidAmount),
+      balanceAmount: Number(inv.balanceAmount),
+    })),
+  }
+}
+
 export async function createEvent(data: {
   name: string
   eventType: EventType
@@ -66,7 +105,7 @@ export async function createEvent(data: {
 
     revalidatePath('/events')
     revalidatePath('/')
-    return { success: true, data: event }
+    return { success: true, data: serializeEvent(event) }
   } catch (error) {
     console.error('Failed to create event:', error)
     return { success: false, error: 'Failed to create event' }
@@ -100,7 +139,7 @@ export async function getEvents(eventType?: EventType, status?: EventStatus) {
       },
     })
 
-    return { success: true, data: events }
+    return { success: true, data: events.map(serializeEvent) }
   } catch (error) {
     console.error('Failed to fetch events:', error)
     return { success: false, error: 'Failed to fetch events' }
@@ -134,7 +173,7 @@ export async function getEventById(id: string) {
       return { success: false, error: 'Event not found' }
     }
 
-    return { success: true, data: event }
+    return { success: true, data: serializeEvent(event) }
   } catch (error) {
     console.error('Failed to fetch event:', error)
     return { success: false, error: 'Failed to fetch event' }
@@ -150,7 +189,7 @@ export async function updateEventStatus(eventId: string, status: EventStatus) {
 
     revalidatePath('/events')
     revalidatePath('/')
-    return { success: true, data: event }
+    return { success: true, data: serializeEvent(event) }
   } catch (error) {
     console.error('Failed to update event status:', error)
     return { success: false, error: 'Failed to update event status' }
@@ -180,10 +219,42 @@ export async function updateEventPayment(eventId: string, paidAmount: number) {
 
     revalidatePath('/events')
     revalidatePath('/')
-    return { success: true, data: updatedEvent }
+    return { success: true, data: serializeEvent(updatedEvent) }
   } catch (error) {
     console.error('Failed to update event payment:', error)
     return { success: false, error: 'Failed to update event payment' }
+  }
+}
+
+export async function updateEvent(
+  id: string,
+  data: {
+    name?: string
+    eventType?: EventType
+    status?: EventStatus
+    clientName?: string
+    clientContact?: string
+    location?: string
+    eventDate?: Date
+    eventTime?: string
+    guestCount?: number
+    totalAmount?: number
+    paidAmount?: number
+    balanceAmount?: number
+    notes?: string
+  }
+) {
+  try {
+    const event = await prisma.event.update({
+      where: { id },
+      data,
+    })
+    revalidatePath('/events')
+    revalidatePath('/')
+    return { success: true, data: serializeEvent(event) }
+  } catch (error) {
+    console.error('Failed to update event:', error)
+    return { success: false, error: 'Failed to update event' }
   }
 }
 
@@ -252,7 +323,7 @@ export async function getEventsForGroceryPurchase(date?: Date) {
       },
     })
 
-    return { success: true, data: events }
+    return { success: true, data: events.map(serializeEvent) }
   } catch (error) {
     console.error('Failed to fetch events for grocery purchase:', error)
     return { success: false, error: 'Failed to fetch events' }

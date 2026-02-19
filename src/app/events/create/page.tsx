@@ -180,10 +180,10 @@ export default function CreateEventPage() {
           <div className="lg:col-span-7 space-y-10">
 
             {/* 1. Basic Info */}
-            <section className="bg-white rounded-3xl p-1">
+            <section className="bg-white rounded-3xl p-6">
               <SectionHeader title="Event Details" subtitle="When and where is it happening?" icon={Calendar} />
 
-              <div className="space-y-6 px-2">
+              <div className="space-y-6">
                 <InputGroup label="Event Name">
                   <input
                     type="text"
@@ -281,10 +281,10 @@ export default function CreateEventPage() {
             <hr className="border-zinc-100" />
 
             {/* 2. Client Info */}
-            <section className="bg-white rounded-3xl p-1">
+            <section className="bg-white rounded-3xl p-6">
               <SectionHeader title="Client Information" subtitle="Who are we serving?" icon={Users} />
 
-              <div className="px-2 grid gap-6">
+              <div className="grid gap-6">
                 <InputGroup label="Client Name">
                   <input
                     type="text"

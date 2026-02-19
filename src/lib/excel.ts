@@ -245,6 +245,56 @@ export function transformEventsDataForUpload(data: any[], userId: string) {
   }))
 }
 
+export function downloadGroceryList(events: any[]) {
+  const rows: any[] = []
+
+  for (const event of events) {
+    if (!event.dishes || event.dishes.length === 0) continue
+
+    for (const eventDish of event.dishes) {
+      const dish = eventDish.dish
+      if (!dish) continue
+
+      if (dish.ingredients && dish.ingredients.length > 0) {
+        for (const ing of dish.ingredients) {
+          rows.push({
+            'Event': event.name,
+            'Event Date': new Date(event.eventDate).toLocaleDateString('en-IN'),
+            'Dish': dish.name,
+            'Plates Ordered': eventDish.quantity,
+            'Ingredient': ing.ingredientName,
+            'Qty per Plate': Number(ing.quantity),
+            'Unit': ing.unit,
+            'Total Qty Needed': Number((Number(ing.quantity) * eventDish.quantity).toFixed(3)),
+          })
+        }
+      } else {
+        rows.push({
+          'Event': event.name,
+          'Event Date': new Date(event.eventDate).toLocaleDateString('en-IN'),
+          'Dish': dish.name,
+          'Plates Ordered': eventDish.quantity,
+          'Ingredient': '—',
+          'Qty per Plate': '',
+          'Unit': '',
+          'Total Qty Needed': '',
+        })
+      }
+    }
+  }
+
+  if (rows.length === 0) return
+
+  const ws = XLSX.utils.json_to_sheet(rows)
+  ws['!cols'] = Object.keys(rows[0]).map((key) => ({ wch: Math.max(key.length + 4, 18) }))
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Grocery List')
+
+  const today = new Date().toISOString().split('T')[0]
+  XLSX.writeFile(wb, `grocery-list-${today}.xlsx`)
+}
+
 export function transformDishesDataForUpload(data: any[]) {
   return data.map((row) => {
     const ingredients = row['Ingredients (comma separated)']

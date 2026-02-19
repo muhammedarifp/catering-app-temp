@@ -22,7 +22,7 @@ import PageLayout from '@/components/PageLayout'
 import BulkUploadModal from '@/components/BulkUploadModal'
 import InvoiceDownloadButton from '@/components/InvoiceDownloadButton'
 import { getEvents, getEventsForGroceryPurchase, bulkUploadEvents } from '@/lib/actions/events'
-import { validateEventsData, transformEventsDataForUpload } from '@/lib/excel'
+import { validateEventsData, transformEventsDataForUpload, downloadGroceryList } from '@/lib/excel'
 
 export default function EventsPage() {
   const router = useRouter()
@@ -286,10 +286,18 @@ export default function EventsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                      <button
+                        onClick={() => router.push(`/events/${event.id}`)}
+                        className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="View"
+                      >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                      <button
+                        onClick={() => router.push(`/events/${event.id}/edit`)}
+                        className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Edit"
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
                       <InvoiceDownloadButton
@@ -398,7 +406,10 @@ export default function EventsPage() {
                   ))}
 
                   <div className="flex items-center justify-end gap-3 pt-4">
-                    <button className="px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium flex items-center gap-2">
+                    <button
+                      onClick={() => downloadGroceryList(groceryEvents)}
+                      className="px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium flex items-center gap-2"
+                    >
                       <Download className="w-4 h-4" />
                       Download Excel
                     </button>

@@ -1,16 +1,3 @@
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
-
-// Extend jsPDF to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    lastAutoTable: {
-      finalY: number
-    }
-  }
-}
-
-// Prisma Decimal type compatible
 type DecimalLike = number | { toNumber(): number } | string
 
 interface InvoiceData {
@@ -28,9 +15,7 @@ interface InvoiceData {
     dishes: Array<{
       quantity: number
       pricePerPlate: DecimalLike
-      dish: {
-        name: string
-      }
+      dish: { name: string }
     }>
     services: Array<{
       serviceName: string
@@ -45,125 +30,370 @@ interface InvoiceData {
   balanceAmount: DecimalLike
 }
 
-export function generateInvoicePDF(invoiceData: InvoiceData) {
-  const doc = new jsPDF()
+const n = (v: DecimalLike) => Number(v)
+const fmt = (v: DecimalLike) => `₹${n(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const fmtDate = (d: Date | string) =>
+  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
-  // Company Header
-  doc.setFontSize(24)
-  doc.setFont('helvetica', 'bold')
-  doc.text('CATERING SERVICES', 105, 20, { align: 'center' })
+function generateInvoiceHTML(data: InvoiceData): string {
+  const { event } = data
+  const balance = n(data.balanceAmount)
+  const isPaid = balance <= 0
 
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Your Company Address Line 1', 105, 28, { align: 'center' })
-  doc.text('Your Company Address Line 2', 105, 33, { align: 'center' })
-  doc.text('Phone: +91 XXXXXXXXXX | Email: info@catering.com', 105, 38, { align: 'center' })
+  const dishRows = event.dishes.map(d => `
+    <tr>
+      <td>${d.dish?.name || '—'}</td>
+      <td class="center">${d.quantity}</td>
+      <td class="right">${fmt(d.pricePerPlate)}</td>
+      <td class="right">${fmt(d.quantity * n(d.pricePerPlate))}</td>
+    </tr>
+  `).join('')
 
-  // Invoice Title
-  doc.setFontSize(18)
-  doc.setFont('helvetica', 'bold')
-  doc.text('INVOICE', 105, 50, { align: 'center' })
+  const serviceRows = event.services.length > 0 ? `
+    <div class="section">
+      <h3 class="section-title">Additional Services</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Description</th>
+            <th class="right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${event.services.map(s => `
+            <tr>
+              <td>${s.serviceName}</td>
+              <td class="muted">${s.description || '—'}</td>
+              <td class="right">${fmt(s.price)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : ''
 
-  // Invoice Details
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`Invoice Number: ${invoiceData.invoiceNumber}`, 20, 60)
-  doc.text(`Issue Date: ${new Date(invoiceData.issueDate).toLocaleDateString()}`, 20, 66)
-  if (invoiceData.dueDate) {
-    doc.text(`Due Date: ${new Date(invoiceData.dueDate).toLocaleDateString()}`, 20, 72)
-  }
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Invoice ${data.invoiceNumber}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-  // Client Details
-  doc.setFont('helvetica', 'bold')
-  doc.text('BILL TO:', 20, 85)
-  doc.setFont('helvetica', 'normal')
-  doc.text(invoiceData.event.clientName, 20, 91)
-  doc.text(`Contact: ${invoiceData.event.clientContact}`, 20, 97)
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 12px;
+      color: #1a1a1a;
+      background: #fff;
+      line-height: 1.6;
+    }
 
-  // Event Details
-  doc.setFont('helvetica', 'bold')
-  doc.text('EVENT DETAILS:', 120, 85)
-  doc.setFont('helvetica', 'normal')
-  doc.text(invoiceData.event.name, 120, 91)
-  doc.text(`Date: ${new Date(invoiceData.event.eventDate).toLocaleDateString()}`, 120, 97)
-  doc.text(`Time: ${invoiceData.event.eventTime}`, 120, 103)
-  doc.text(`Location: ${invoiceData.event.location}`, 120, 109)
-  doc.text(`Guests: ${invoiceData.event.guestCount}`, 120, 115)
+    .page {
+      max-width: 794px;
+      margin: 0 auto;
+      padding: 40px 48px;
+    }
 
-  // Dishes Table
-  const dishesData = invoiceData.event.dishes.map((dish) => [
-    dish.dish.name,
-    dish.quantity.toString(),
-    `₹${Number(dish.pricePerPlate).toFixed(2)}`,
-    `₹${(dish.quantity * Number(dish.pricePerPlate)).toFixed(2)}`,
-  ])
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 24px;
+      border-bottom: 3px solid #18181b;
+      margin-bottom: 32px;
+    }
 
-  // @ts-ignore - autoTable is added to jsPDF via plugin
-  doc.autoTable({
-    startY: 125,
-    head: [['Dish', 'Quantity', 'Price/Plate', 'Total']],
-    body: dishesData,
-    theme: 'striped',
-    headStyles: { fillColor: [41, 128, 185] },
-    styles: { fontSize: 9 },
-  })
+    .brand h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #18181b;
+    }
 
-  // Services Table (if any)
-  if (invoiceData.event.services.length > 0) {
-    const servicesData = invoiceData.event.services.map((service) => [
-      service.serviceName,
-      service.description || '-',
-      `₹${Number(service.price).toFixed(2)}`,
-    ])
+    .brand p {
+      font-size: 11px;
+      color: #71717a;
+      margin-top: 2px;
+    }
 
-    // @ts-ignore - autoTable is added to jsPDF via plugin
-    doc.autoTable({
-      startY: doc.lastAutoTable.finalY + 10,
-      head: [['Service', 'Description', 'Price']],
-      body: servicesData,
-      theme: 'striped',
-      headStyles: { fillColor: [41, 128, 185] },
-      styles: { fontSize: 9 },
-    })
-  }
+    .invoice-meta { text-align: right; }
 
-  // Totals
-  const finalY = doc.lastAutoTable.finalY + 10
+    .invoice-meta .invoice-number {
+      font-size: 20px;
+      font-weight: 700;
+      color: #18181b;
+    }
 
-  doc.setFont('helvetica', 'normal')
-  doc.text('Subtotal:', 130, finalY)
-  doc.text(`₹${Number(invoiceData.subtotal).toFixed(2)}`, 180, finalY, { align: 'right' })
+    .invoice-meta .dates {
+      font-size: 11px;
+      color: #52525b;
+      margin-top: 6px;
+      line-height: 1.8;
+    }
 
-  doc.text('Tax (18% GST):', 130, finalY + 6)
-  doc.text(`₹${Number(invoiceData.tax).toFixed(2)}`, 180, finalY + 6, { align: 'right' })
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-top: 8px;
+    }
+    .badge-paid   { background: #dcfce7; color: #15803d; }
+    .badge-unpaid { background: #fef9c3; color: #a16207; }
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.text('Total Amount:', 130, finalY + 14)
-  doc.text(`₹${Number(invoiceData.totalAmount).toFixed(2)}`, 180, finalY + 14, { align: 'right' })
+    /* ── Info Cards ── */
+    .info-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
 
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Paid Amount:', 130, finalY + 22)
-  doc.text(`₹${Number(invoiceData.paidAmount).toFixed(2)}`, 180, finalY + 22, { align: 'right' })
+    .info-card {
+      background: #f4f4f5;
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
 
-  doc.setFont('helvetica', 'bold')
-  const balanceColor = Number(invoiceData.balanceAmount) > 0 ? [220, 53, 69] : [40, 167, 69]
-  doc.setTextColor(balanceColor[0], balanceColor[1], balanceColor[2])
-  doc.text('Balance Due:', 130, finalY + 30)
-  doc.text(`₹${Number(invoiceData.balanceAmount).toFixed(2)}`, 180, finalY + 30, { align: 'right' })
+    .info-card h4 {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #71717a;
+      margin-bottom: 10px;
+    }
 
-  // Footer
-  doc.setTextColor(0, 0, 0)
-  doc.setFont('helvetica', 'italic')
-  doc.setFontSize(8)
-  doc.text('Thank you for your business!', 105, 280, { align: 'center' })
-  doc.text('For any queries, please contact us at the above details.', 105, 285, { align: 'center' })
+    .info-card p {
+      font-size: 12px;
+      color: #18181b;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
 
-  return doc
+    .info-card .label {
+      font-size: 10px;
+      color: #71717a;
+      font-weight: 400;
+    }
+
+    /* ── Section ── */
+    .section { margin-bottom: 28px; }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #18181b;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e4e4e7;
+    }
+
+    /* ── Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+
+    thead { background: #18181b; color: #fff; }
+
+    thead th {
+      padding: 10px 14px;
+      font-weight: 600;
+      text-align: left;
+      font-size: 11px;
+      letter-spacing: 0.3px;
+    }
+
+    tbody tr { border-bottom: 1px solid #f0f0f0; }
+    tbody tr:last-child { border-bottom: none; }
+
+    tbody tr:nth-child(even) { background: #fafafa; }
+
+    tbody td {
+      padding: 10px 14px;
+      color: #27272a;
+    }
+
+    .center { text-align: center; }
+    .right   { text-align: right; }
+    .muted   { color: #71717a; font-size: 11px; }
+
+    /* ── Totals ── */
+    .totals-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 4px;
+    }
+
+    .totals {
+      width: 280px;
+      background: #f4f4f5;
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      font-size: 12px;
+      color: #52525b;
+    }
+
+    .total-row.divider {
+      border-top: 1px solid #e4e4e7;
+      margin-top: 6px;
+      padding-top: 10px;
+    }
+
+    .total-row.grand {
+      font-size: 14px;
+      font-weight: 800;
+      color: #18181b;
+    }
+
+    .total-row.paid   { color: #15803d; font-weight: 600; }
+    .total-row.balance-due { color: #b45309; font-weight: 700; }
+    .total-row.balance-ok  { color: #15803d; font-weight: 700; }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e4e4e7;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer p { font-size: 10px; color: #a1a1aa; }
+
+    .footer .thank-you {
+      font-size: 13px;
+      font-weight: 600;
+      color: #18181b;
+    }
+
+    @media print {
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .page { padding: 20px 28px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <h1>CaterPro</h1>
+      <p>Professional Catering Services</p>
+    </div>
+    <div class="invoice-meta">
+      <div class="invoice-number">INVOICE</div>
+      <div class="dates">
+        <strong>#${data.invoiceNumber}</strong><br/>
+        Issued: ${fmtDate(data.issueDate)}<br/>
+        ${data.dueDate ? `Due: ${fmtDate(data.dueDate)}` : ''}
+      </div>
+      <span class="status-badge ${isPaid ? 'badge-paid' : 'badge-unpaid'}">
+        ${isPaid ? 'Paid' : 'Payment Pending'}
+      </span>
+    </div>
+  </div>
+
+  <!-- Bill To + Event Info -->
+  <div class="info-row">
+    <div class="info-card">
+      <h4>Bill To</h4>
+      <p>${event.clientName}</p>
+      <p class="label">Contact: ${event.clientContact}</p>
+    </div>
+    <div class="info-card">
+      <h4>Event Details</h4>
+      <p>${event.name}</p>
+      <p class="label">${fmtDate(event.eventDate)} &nbsp;|&nbsp; ${event.eventTime}</p>
+      <p class="label">${event.location}</p>
+      <p class="label">${event.guestCount} guests</p>
+    </div>
+  </div>
+
+  <!-- Dishes -->
+  <div class="section">
+    <h3 class="section-title">Dishes</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Dish</th>
+          <th class="center">Plates</th>
+          <th class="right">Rate / Plate</th>
+          <th class="right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${event.dishes.length > 0 ? dishRows : `<tr><td colspan="4" class="muted" style="text-align:center;padding:16px">No dishes added</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Services -->
+  ${serviceRows}
+
+  <!-- Totals -->
+  <div class="totals-wrapper">
+    <div class="totals">
+      <div class="total-row">
+        <span>Subtotal</span>
+        <span>${fmt(data.subtotal)}</span>
+      </div>
+      <div class="total-row">
+        <span>GST (18%)</span>
+        <span>${fmt(data.tax)}</span>
+      </div>
+      <div class="total-row divider grand">
+        <span>Total</span>
+        <span>${fmt(data.totalAmount)}</span>
+      </div>
+      <div class="total-row paid">
+        <span>Paid</span>
+        <span>${fmt(data.paidAmount)}</span>
+      </div>
+      <div class="total-row ${isPaid ? 'balance-ok' : 'balance-due'}">
+        <span>Balance Due</span>
+        <span>${fmt(data.balanceAmount)}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p class="thank-you">Thank you for your business!</p>
+    <p>For queries, please contact us.</p>
+  </div>
+
+</div>
+</body>
+</html>`
 }
 
 export function downloadInvoice(invoiceData: InvoiceData) {
-  const doc = generateInvoicePDF(invoiceData)
-  doc.save(`Invoice-${invoiceData.invoiceNumber}.pdf`)
+  const html = generateInvoiceHTML(invoiceData)
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    alert('Please allow popups to download the invoice.')
+    return
+  }
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.onload = () => {
+    printWindow.focus()
+    printWindow.print()
+  }
 }

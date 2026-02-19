@@ -5,7 +5,8 @@ import BulkUploadModal from '@/components/BulkUploadModal';
 import { Plus, Search, Edit, Trash2, Upload, ChefHat, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { getDishes, bulkUploadDishes } from '@/lib/actions/dishes';
+import { useRouter } from 'next/navigation';
+import { getDishes, deleteDish, bulkUploadDishes } from '@/lib/actions/dishes';
 import { validateDishesData, transformDishesDataForUpload } from '@/lib/excel';
 
 export default function DishesPage() {
@@ -13,6 +14,7 @@ export default function DishesPage() {
     const [dishes, setDishes] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+    const router = useRouter();
 
     useEffect(() => {
         loadDishes();
@@ -31,6 +33,14 @@ export default function DishesPage() {
             setLoading(false);
         }
     }
+
+    const handleDelete = async (id: string, name: string) => {
+        if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        const result = await deleteDish(id);
+        if (result.success) {
+            setDishes(prev => prev.filter(d => d.id !== id));
+        }
+    };
 
     const handleBulkUpload = async (data: any[]) => {
         const transformedData = transformDishesDataForUpload(data);
@@ -139,10 +149,18 @@ export default function DishesPage() {
                                                 <a href={`/dishes/${dish.id}`} className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="View Details">
                                                     <ArrowRight className="h-4 w-4" />
                                                 </a>
-                                                <button className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded">
+                                                <button
+                                                    onClick={() => router.push(`/dishes/${dish.id}/edit`)}
+                                                    className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded"
+                                                    title="Edit"
+                                                >
                                                     <Edit className="h-4 w-4" />
                                                 </button>
-                                                <button className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                                <button
+                                                    onClick={() => handleDelete(dish.id, dish.name)}
+                                                    className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                    title="Delete"
+                                                >
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
                                             </div>

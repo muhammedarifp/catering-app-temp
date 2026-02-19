@@ -3,6 +3,38 @@
 import { revalidatePath } from 'next/cache'
 import prisma from '@/lib/prisma'
 
+function serializeInvoice(invoice: any): any {
+  if (!invoice) return null
+  return {
+    ...invoice,
+    subtotal: Number(invoice.subtotal),
+    tax: Number(invoice.tax),
+    totalAmount: Number(invoice.totalAmount),
+    paidAmount: Number(invoice.paidAmount),
+    balanceAmount: Number(invoice.balanceAmount),
+    event: invoice.event ? {
+      ...invoice.event,
+      totalAmount: Number(invoice.event.totalAmount),
+      paidAmount: Number(invoice.event.paidAmount),
+      balanceAmount: Number(invoice.event.balanceAmount),
+      dishes: invoice.event.dishes?.map((d: any) => ({
+        ...d,
+        pricePerPlate: Number(d.pricePerPlate),
+        dish: d.dish ? {
+          ...d.dish,
+          pricePerPlate: Number(d.dish.pricePerPlate),
+          estimatedCostPerPlate: Number(d.dish.estimatedCostPerPlate),
+          sellingPricePerPlate: Number(d.dish.sellingPricePerPlate),
+        } : undefined,
+      })),
+      services: invoice.event.services?.map((s: any) => ({
+        ...s,
+        price: Number(s.price),
+      })),
+    } : undefined,
+  }
+}
+
 export async function getEventForInvoice(eventId: string) {
   try {
     const event = await prisma.event.findUnique({
@@ -88,7 +120,7 @@ export async function createInvoice(eventId: string) {
     })
 
     revalidatePath('/events')
-    return { success: true, data: invoice }
+    return { success: true, data: serializeInvoice(invoice) }
   } catch (error) {
     console.error('Failed to create invoice:', error)
     return { success: false, error: 'Failed to create invoice' }
@@ -113,7 +145,7 @@ export async function getInvoiceByEvent(eventId: string) {
       },
     })
 
-    return { success: true, data: invoice }
+    return { success: true, data: serializeInvoice(invoice) }
   } catch (error) {
     console.error('Failed to fetch invoice:', error)
     return { success: false, error: 'Failed to fetch invoice' }
