@@ -16,7 +16,7 @@ import EnquiriesList from '@/components/EnquiriesList';
 import { getEnquiries } from '@/lib/actions/enquiries';
 import { getEvents } from '@/lib/actions/events';
 import { getDishes } from '@/lib/actions/dishes';
-import { getTodos, toggleTodoComplete } from '@/lib/actions/todos';
+import { getTodos, toggleTodoComplete, createTodo } from '@/lib/actions/todos';
 import { useAuth } from '@/contexts/AuthContext';
 
 function getGreeting() {
@@ -42,6 +42,9 @@ export default function Dashboard() {
     totalEnquiries: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [showAddTodo, setShowAddTodo] = useState(false);
+  const [newTodoTitle, setNewTodoTitle] = useState('');
+  const [addingTodo, setAddingTodo] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -56,7 +59,7 @@ export default function Dashboard() {
         getEnquiries(),
         getEvents(),
         getDishes(undefined, true), // Only active dishes
-        getTodos(false), // Only incomplete todos
+        getTodos(), // All todos
       ]);
 
       if (enquiriesRes.success && enquiriesRes.data) setEnquiries(enquiriesRes.data);
@@ -89,10 +92,25 @@ export default function Dashboard() {
     .slice(0, 5);
 
   const handleToggleTodo = async (id: string, isCompleted: boolean) => {
+    // Optimistic update
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, isCompleted: !isCompleted } : t));
     const result = await toggleTodoComplete(id, !isCompleted);
+    if (!result.success) {
+      // Revert on failure
+      setTodos(prev => prev.map(t => t.id === id ? { ...t, isCompleted } : t));
+    }
+  };
+
+  const handleAddTodo = async () => {
+    if (!newTodoTitle.trim() || !user) return;
+    setAddingTodo(true);
+    const result = await createTodo({ title: newTodoTitle.trim(), createdById: user.id });
     if (result.success) {
+      setNewTodoTitle('');
+      setShowAddTodo(false);
       loadData();
     }
+    setAddingTodo(false);
   };
 
   const handleViewEnquiryDetails = (id: string) => {
@@ -196,10 +214,33 @@ export default function Dashboard() {
                   <h3 className="font-bold text-slate-900 flex items-center gap-2">
                     <ListTodo className="w-5 h-5 text-indigo-500" /> Todo List
                   </h3>
-                  <button className="text-sm font-medium text-slate-500 hover:text-slate-900">
+                  <button
+                    onClick={() => setShowAddTodo(v => !v)}
+                    className="text-sm font-medium text-slate-500 hover:text-slate-900"
+                  >
                     + Add
                   </button>
                 </div>
+                {showAddTodo && (
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newTodoTitle}
+                      onChange={e => setNewTodoTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddTodo(); if (e.key === 'Escape') setShowAddTodo(false); }}
+                      placeholder="Todo title..."
+                      className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleAddTodo}
+                      disabled={addingTodo || !newTodoTitle.trim()}
+                      className="px-3 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium disabled:opacity-50"
+                    >
+                      {addingTodo ? '...' : 'Add'}
+                    </button>
+                  </div>
+                )}
                 <div className="space-y-3 max-h-100 overflow-y-auto">
                   {todos.length > 0 ? (
                     todos.map((todo) => (

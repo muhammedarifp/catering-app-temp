@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
@@ -22,7 +22,8 @@ import { getEnquiryById, updateEnquiryStatus, addEnquiryUpdate } from '@/lib/act
 import { useAuth } from '@/contexts/AuthContext'
 import { downloadMenu } from '@/lib/invoice-pdf'
 
-export default function EnquiryDetailPage({ params }: { params: { id: string } }) {
+export default function EnquiryDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const { user } = useAuth()
   const [enquiry, setEnquiry] = useState<any>(null)
@@ -35,11 +36,11 @@ export default function EnquiryDetailPage({ params }: { params: { id: string } }
 
   useEffect(() => {
     loadEnquiry()
-  }, [params.id])
+  }, [id])
 
   async function loadEnquiry() {
     setLoading(true)
-    const result = await getEnquiryById(params.id)
+    const result = await getEnquiryById(id)
     if (result.success && result.data) {
       setEnquiry(result.data)
     }
@@ -49,7 +50,7 @@ export default function EnquiryDetailPage({ params }: { params: { id: string } }
   const handleStatusUpdate = async (status: 'PENDING' | 'LOST' | 'SUCCESS') => {
     if (!user) return
     setUpdating(true)
-    const result = await updateEnquiryStatus(params.id, status as any, user.id)
+    const result = await updateEnquiryStatus(id, status as any, user.id)
     if (result.success) {
       loadEnquiry()
     }
@@ -59,7 +60,7 @@ export default function EnquiryDetailPage({ params }: { params: { id: string } }
   const handleAddNote = async () => {
     if (!noteInput.trim()) return
     setAddingNote(true)
-    const result = await addEnquiryUpdate(params.id, noteInput)
+    const result = await addEnquiryUpdate(id, noteInput)
     if (result.success) {
       setNoteInput('')
       loadEnquiry()

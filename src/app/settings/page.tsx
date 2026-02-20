@@ -46,6 +46,7 @@ export default function SettingsPage() {
 
   const availablePages = [
     { value: '/', label: 'Home' },
+    { value: '/enquiries', label: 'Enquiries' },
     { value: '/events', label: 'Events' },
     { value: '/dishes', label: 'Dishes' },
     { value: '/other-expenses', label: 'Other Expenses' },
