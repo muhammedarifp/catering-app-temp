@@ -387,6 +387,4 @@ model NotificationSetting {
   lowStockAlert           Boolean @default(true)
 
   updatedAt               DateTime @updatedAt
-
-  @@map("notification_settings")
 }
