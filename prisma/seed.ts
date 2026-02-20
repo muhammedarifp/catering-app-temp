@@ -11,31 +11,51 @@ const pool = new pg.Pool({
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
-async function main() {
-  console.log('🌱 Seeding database...')
+async function clearAll() {
+  console.log('🗑️  Clearing all existing data...')
 
-  // Create default Super Admin user
+  await prisma.groceryPurchaseItem.deleteMany()
+  await prisma.groceryPurchase.deleteMany()
+  await prisma.invoice.deleteMany()
+  await prisma.otherExpense.deleteMany()
+  await prisma.eventDish.deleteMany()
+  await prisma.eventService.deleteMany()
+  await prisma.event.deleteMany()
+  await prisma.enquiryUpdate.deleteMany()
+  await prisma.enquiryDish.deleteMany()
+  await prisma.enquiryService.deleteMany()
+  await prisma.enquiry.deleteMany()
+  await prisma.dishIngredient.deleteMany()
+  await prisma.dish.deleteMany()
+  await prisma.todo.deleteMany()
+  await prisma.notificationSetting.deleteMany()
+  await prisma.user.deleteMany()
+
+  console.log('✅ All data cleared')
+}
+
+async function main() {
+  await clearAll()
+
+  console.log('\n🌱 Seeding fresh data...\n')
+
+  // ── Users ────────────────────────────────────────────────────────────────────
   const hashedPassword = await bcrypt.hash('admin123', 10)
 
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
-    update: {},
-    create: {
-      email: 'admin@example.com',
-      name: 'Super Admin',
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@caterpro.com',
+      name: 'Afsal (Admin)',
       password: hashedPassword,
       role: 'SUPER_ADMIN',
       isActive: true,
     },
   })
+  console.log('✅ Created admin:', admin.email)
 
-  console.log('✅ Created Super Admin:', admin.email)
-
-  // Create default notification settings
-  const notificationSettings = await prisma.notificationSetting.upsert({
-    where: { id: 'default' },
-    update: {},
-    create: {
+  // ── Notification Settings ─────────────────────────────────────────────────
+  await prisma.notificationSetting.create({
+    data: {
       id: 'default',
       invoiceGenerated: true,
       eventCreated: true,
@@ -46,435 +66,852 @@ async function main() {
     },
   })
 
-  console.log('✅ Created default notification settings')
+  // ── Dishes ───────────────────────────────────────────────────────────────────
+  // Categories match the menu PDF section structure
+  const dishes = [
+    // Welcome Drink
+    {
+      name: 'Fresh Fruits Juice Live (5 Types)',
+      description: 'Live fresh fruit juice counter with 5 seasonal varieties',
+      category: 'Welcome Drink',
+      pricePerPlate: 80, estimatedCostPerPlate: 35, sellingPricePerPlate: 80, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Mixed Seasonal Fruits', quantity: 300, unit: 'g' },
+        { ingredientName: 'Sugar', quantity: 20, unit: 'g' },
+        { ingredientName: 'Ice', quantity: 100, unit: 'g' },
+      ],
+    },
+    {
+      name: 'Tender Coconut Water (Elaneer)',
+      description: 'Fresh tender coconut served chilled',
+      category: 'Welcome Drink',
+      pricePerPlate: 60, estimatedCostPerPlate: 30, sellingPricePerPlate: 60, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Tender Coconut', quantity: 1, unit: 'piece' },
+      ],
+    },
 
-  // Create sample dishes with ingredients
-  const sampleDishes = [
-    // Starters
+    // Herbal Tea
     {
-      name: 'Veg Spring Rolls',
-      description: 'Crispy golden rolls stuffed with seasoned vegetables and glass noodles',
-      category: 'Starter',
-      pricePerPlate: 120,
-      estimatedCostPerPlate: 50,
-      sellingPricePerPlate: 120,
-      isVeg: true,
+      name: 'Ginger Tea',
+      description: 'Hot tea brewed with fresh ginger',
+      category: 'Herbal Tea',
+      pricePerPlate: 25, estimatedCostPerPlate: 8, sellingPricePerPlate: 25, isVeg: true,
       ingredients: [
-        { ingredientName: 'Spring Roll Sheets', quantity: 6, unit: 'piece' },
-        { ingredientName: 'Cabbage', quantity: 100, unit: 'g' },
-        { ingredientName: 'Carrot', quantity: 50, unit: 'g' },
-        { ingredientName: 'Glass Noodles', quantity: 30, unit: 'g' },
-        { ingredientName: 'Soy Sauce', quantity: 1, unit: 'tbsp' },
-        { ingredientName: 'Oil', quantity: 200, unit: 'ml' },
+        { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
+        { ingredientName: 'Fresh Ginger', quantity: 5, unit: 'g' },
+        { ingredientName: 'Milk', quantity: 80, unit: 'ml' },
+        { ingredientName: 'Sugar', quantity: 8, unit: 'g' },
       ],
     },
     {
-      name: 'Chicken Tikka',
-      description: 'Tender chicken marinated in spiced yogurt and grilled in tandoor',
-      category: 'Starter',
-      pricePerPlate: 180,
-      estimatedCostPerPlate: 85,
-      sellingPricePerPlate: 180,
-      isVeg: false,
+      name: 'Mint Tea',
+      description: 'Refreshing hot tea with fresh mint leaves',
+      category: 'Herbal Tea',
+      pricePerPlate: 25, estimatedCostPerPlate: 7, sellingPricePerPlate: 25, isVeg: true,
       ingredients: [
-        { ingredientName: 'Chicken', quantity: 200, unit: 'g' },
-        { ingredientName: 'Yogurt', quantity: 50, unit: 'g' },
-        { ingredientName: 'Ginger Garlic Paste', quantity: 1, unit: 'tbsp' },
-        { ingredientName: 'Red Chilli Powder', quantity: 1, unit: 'tsp' },
-        { ingredientName: 'Garam Masala', quantity: 0.5, unit: 'tsp' },
-        { ingredientName: 'Lemon Juice', quantity: 1, unit: 'tbsp' },
-        { ingredientName: 'Oil', quantity: 2, unit: 'tbsp' },
+        { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
+        { ingredientName: 'Fresh Mint Leaves', quantity: 8, unit: 'g' },
+        { ingredientName: 'Sugar', quantity: 8, unit: 'g' },
+        { ingredientName: 'Water', quantity: 150, unit: 'ml' },
       ],
     },
-    // Main Course
     {
-      name: 'Butter Chicken',
-      description: 'Creamy tomato-based curry with tender chicken pieces',
+      name: 'Lime Tea',
+      description: 'Hot black tea with fresh lime juice',
+      category: 'Herbal Tea',
+      pricePerPlate: 25, estimatedCostPerPlate: 6, sellingPricePerPlate: 25, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
+        { ingredientName: 'Lime Juice', quantity: 10, unit: 'ml' },
+        { ingredientName: 'Sugar', quantity: 8, unit: 'g' },
+        { ingredientName: 'Water', quantity: 150, unit: 'ml' },
+      ],
+    },
+    {
+      name: 'Green Tea',
+      description: 'Healthy green tea served hot',
+      category: 'Herbal Tea',
+      pricePerPlate: 30, estimatedCostPerPlate: 10, sellingPricePerPlate: 30, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Green Tea Leaves', quantity: 2, unit: 'g' },
+        { ingredientName: 'Water', quantity: 200, unit: 'ml' },
+        { ingredientName: 'Honey', quantity: 5, unit: 'g' },
+      ],
+    },
+    {
+      name: 'Cinnamon Tea',
+      description: 'Fragrant hot tea infused with cinnamon sticks',
+      category: 'Herbal Tea',
+      pricePerPlate: 30, estimatedCostPerPlate: 9, sellingPricePerPlate: 30, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
+        { ingredientName: 'Cinnamon Stick', quantity: 1, unit: 'piece' },
+        { ingredientName: 'Sugar', quantity: 8, unit: 'g' },
+        { ingredientName: 'Milk', quantity: 60, unit: 'ml' },
+      ],
+    },
+    {
+      name: 'Cardamom Tea',
+      description: 'Aromatic tea with crushed cardamom pods',
+      category: 'Herbal Tea',
+      pricePerPlate: 25, estimatedCostPerPlate: 8, sellingPricePerPlate: 25, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
+        { ingredientName: 'Cardamom Pods', quantity: 2, unit: 'piece' },
+        { ingredientName: 'Milk', quantity: 80, unit: 'ml' },
+        { ingredientName: 'Sugar', quantity: 8, unit: 'g' },
+      ],
+    },
+
+    // Main Course (with Rice)
+    {
+      name: 'Beef Biriyani',
+      description: 'Slow-cooked Kerala style beef biriyani with fragrant Kaima rice',
       category: 'Main Course',
-      pricePerPlate: 250,
-      estimatedCostPerPlate: 110,
-      sellingPricePerPlate: 250,
-      isVeg: false,
+      pricePerPlate: 280, estimatedCostPerPlate: 140, sellingPricePerPlate: 280, isVeg: false,
       ingredients: [
-        { ingredientName: 'Chicken', quantity: 250, unit: 'g' },
-        { ingredientName: 'Tomato Puree', quantity: 100, unit: 'ml' },
-        { ingredientName: 'Fresh Cream', quantity: 50, unit: 'ml' },
-        { ingredientName: 'Butter', quantity: 30, unit: 'g' },
-        { ingredientName: 'Ginger Garlic Paste', quantity: 1, unit: 'tbsp' },
-        { ingredientName: 'Garam Masala', quantity: 1, unit: 'tsp' },
-        { ingredientName: 'Kasuri Methi', quantity: 0.5, unit: 'tsp' },
-      ],
-    },
-    {
-      name: 'Paneer Tikka Masala',
-      description: 'Grilled cottage cheese cubes in a rich, spiced tomato gravy',
-      category: 'Main Course',
-      pricePerPlate: 200,
-      estimatedCostPerPlate: 85,
-      sellingPricePerPlate: 200,
-      isVeg: true,
-      ingredients: [
-        { ingredientName: 'Paneer', quantity: 200, unit: 'g' },
-        { ingredientName: 'Tomato', quantity: 150, unit: 'g' },
+        { ingredientName: 'Kaima Rice', quantity: 200, unit: 'g' },
+        { ingredientName: 'Beef', quantity: 200, unit: 'g' },
         { ingredientName: 'Onion', quantity: 100, unit: 'g' },
-        { ingredientName: 'Fresh Cream', quantity: 30, unit: 'ml' },
-        { ingredientName: 'Ginger Garlic Paste', quantity: 1, unit: 'tbsp' },
-        { ingredientName: 'Coriander Powder', quantity: 1, unit: 'tsp' },
-        { ingredientName: 'Oil', quantity: 2, unit: 'tbsp' },
-      ],
-    },
-    {
-      name: 'Dal Makhani',
-      description: 'Slow-cooked black lentils simmered overnight in butter and cream',
-      category: 'Main Course',
-      pricePerPlate: 150,
-      estimatedCostPerPlate: 55,
-      sellingPricePerPlate: 150,
-      isVeg: true,
-      ingredients: [
-        { ingredientName: 'Black Lentils (Urad Dal)', quantity: 100, unit: 'g' },
-        { ingredientName: 'Rajma (Kidney Beans)', quantity: 20, unit: 'g' },
-        { ingredientName: 'Butter', quantity: 40, unit: 'g' },
-        { ingredientName: 'Fresh Cream', quantity: 30, unit: 'ml' },
-        { ingredientName: 'Tomato Puree', quantity: 50, unit: 'ml' },
-        { ingredientName: 'Ginger Garlic Paste', quantity: 1, unit: 'tbsp' },
-      ],
-    },
-    // Rice
-    {
-      name: 'Veg Biryani',
-      description: 'Fragrant basmati rice layered with spiced mixed vegetables and saffron',
-      category: 'Rice',
-      pricePerPlate: 160,
-      estimatedCostPerPlate: 65,
-      sellingPricePerPlate: 160,
-      isVeg: true,
-      ingredients: [
-        { ingredientName: 'Basmati Rice', quantity: 150, unit: 'g' },
-        { ingredientName: 'Mixed Vegetables', quantity: 100, unit: 'g' },
-        { ingredientName: 'Onion', quantity: 80, unit: 'g' },
-        { ingredientName: 'Yogurt', quantity: 50, unit: 'g' },
-        { ingredientName: 'Biryani Masala', quantity: 1, unit: 'tbsp' },
-        { ingredientName: 'Saffron', quantity: 0.1, unit: 'g' },
-        { ingredientName: 'Ghee', quantity: 2, unit: 'tbsp' },
-      ],
-    },
-    {
-      name: 'Chicken Biryani',
-      description: 'Aromatic basmati rice slow-cooked with marinated chicken and whole spices',
-      category: 'Rice',
-      pricePerPlate: 220,
-      estimatedCostPerPlate: 100,
-      sellingPricePerPlate: 220,
-      isVeg: false,
-      ingredients: [
-        { ingredientName: 'Basmati Rice', quantity: 150, unit: 'g' },
-        { ingredientName: 'Chicken', quantity: 200, unit: 'g' },
-        { ingredientName: 'Onion', quantity: 100, unit: 'g' },
-        { ingredientName: 'Yogurt', quantity: 60, unit: 'g' },
-        { ingredientName: 'Biryani Masala', quantity: 1.5, unit: 'tbsp' },
+        { ingredientName: 'Tomato', quantity: 80, unit: 'g' },
+        { ingredientName: 'Ginger Garlic Paste', quantity: 2, unit: 'tbsp' },
+        { ingredientName: 'Biriyani Masala', quantity: 2, unit: 'tbsp' },
         { ingredientName: 'Ghee', quantity: 3, unit: 'tbsp' },
         { ingredientName: 'Mint Leaves', quantity: 10, unit: 'g' },
+        { ingredientName: 'Coriander Leaves', quantity: 10, unit: 'g' },
       ],
     },
-    // Bread
     {
-      name: 'Butter Naan',
-      description: 'Soft leavened flatbread baked in tandoor and brushed with butter',
-      category: 'Bread',
-      pricePerPlate: 40,
-      estimatedCostPerPlate: 12,
-      sellingPricePerPlate: 40,
-      isVeg: true,
+      name: 'Chicken Kabiri',
+      description: 'Traditional Kerala Kabiri rice with tender chicken pieces and spices',
+      category: 'Main Course',
+      pricePerPlate: 250, estimatedCostPerPlate: 120, sellingPricePerPlate: 250, isVeg: false,
       ingredients: [
-        { ingredientName: 'Maida (All Purpose Flour)', quantity: 100, unit: 'g' },
-        { ingredientName: 'Yogurt', quantity: 30, unit: 'g' },
-        { ingredientName: 'Butter', quantity: 15, unit: 'g' },
-        { ingredientName: 'Yeast', quantity: 2, unit: 'g' },
+        { ingredientName: 'Kaima Rice', quantity: 180, unit: 'g' },
+        { ingredientName: 'Chicken', quantity: 200, unit: 'g' },
+        { ingredientName: 'Onion', quantity: 100, unit: 'g' },
+        { ingredientName: 'Cashew Nuts', quantity: 20, unit: 'g' },
+        { ingredientName: 'Raisins', quantity: 10, unit: 'g' },
+        { ingredientName: 'Ghee', quantity: 3, unit: 'tbsp' },
+        { ingredientName: 'Garam Masala', quantity: 1, unit: 'tbsp' },
+      ],
+    },
+    {
+      name: 'Mutton Biriyani',
+      description: 'Rich and aromatic mutton biriyani Kerala style',
+      category: 'Main Course',
+      pricePerPlate: 320, estimatedCostPerPlate: 165, sellingPricePerPlate: 320, isVeg: false,
+      ingredients: [
+        { ingredientName: 'Kaima Rice', quantity: 200, unit: 'g' },
+        { ingredientName: 'Mutton', quantity: 220, unit: 'g' },
+        { ingredientName: 'Onion', quantity: 120, unit: 'g' },
+        { ingredientName: 'Tomato', quantity: 80, unit: 'g' },
+        { ingredientName: 'Ginger Garlic Paste', quantity: 2, unit: 'tbsp' },
+        { ingredientName: 'Ghee', quantity: 4, unit: 'tbsp' },
+        { ingredientName: 'Biriyani Masala', quantity: 2, unit: 'tbsp' },
+        { ingredientName: 'Saffron', quantity: 0.1, unit: 'g' },
+      ],
+    },
+
+    // Fry
+    {
+      name: 'Chicken Fry',
+      description: 'Crispy Kerala style deep fried chicken with spiced marinade',
+      category: 'Fry',
+      pricePerPlate: 160, estimatedCostPerPlate: 80, sellingPricePerPlate: 160, isVeg: false,
+      ingredients: [
+        { ingredientName: 'Chicken', quantity: 200, unit: 'g' },
+        { ingredientName: 'Red Chilli Powder', quantity: 2, unit: 'tsp' },
+        { ingredientName: 'Turmeric Powder', quantity: 0.5, unit: 'tsp' },
+        { ingredientName: 'Ginger Garlic Paste', quantity: 1, unit: 'tbsp' },
+        { ingredientName: 'Curry Leaves', quantity: 5, unit: 'piece' },
+        { ingredientName: 'Coconut Oil', quantity: 200, unit: 'ml' },
+      ],
+    },
+    {
+      name: 'Beef Varattu',
+      description: 'Dry roasted beef cooked with coconut and whole spices',
+      category: 'Fry',
+      pricePerPlate: 180, estimatedCostPerPlate: 90, sellingPricePerPlate: 180, isVeg: false,
+      ingredients: [
+        { ingredientName: 'Beef', quantity: 200, unit: 'g' },
+        { ingredientName: 'Grated Coconut', quantity: 50, unit: 'g' },
+        { ingredientName: 'Shallots', quantity: 60, unit: 'g' },
+        { ingredientName: 'Curry Leaves', quantity: 8, unit: 'piece' },
+        { ingredientName: 'Red Chilli', quantity: 3, unit: 'piece' },
+        { ingredientName: 'Coconut Oil', quantity: 2, unit: 'tbsp' },
+      ],
+    },
+    {
+      name: 'Fish Fry',
+      description: 'Coastal Kerala style marinated fish deep fried crispy',
+      category: 'Fry',
+      pricePerPlate: 200, estimatedCostPerPlate: 100, sellingPricePerPlate: 200, isVeg: false,
+      ingredients: [
+        { ingredientName: 'Fish (Seer/King Fish)', quantity: 200, unit: 'g' },
+        { ingredientName: 'Red Chilli Powder', quantity: 2, unit: 'tsp' },
+        { ingredientName: 'Turmeric', quantity: 0.5, unit: 'tsp' },
+        { ingredientName: 'Lemon Juice', quantity: 1, unit: 'tbsp' },
+        { ingredientName: 'Coconut Oil', quantity: 200, unit: 'ml' },
+      ],
+    },
+
+    // Salads
+    {
+      name: 'Raita',
+      description: 'Creamy yogurt with cucumber, cumin and coriander',
+      category: 'Salads',
+      pricePerPlate: 40, estimatedCostPerPlate: 12, sellingPricePerPlate: 40, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Curd (Yogurt)', quantity: 100, unit: 'g' },
+        { ingredientName: 'Cucumber', quantity: 40, unit: 'g' },
+        { ingredientName: 'Cumin Powder', quantity: 0.5, unit: 'tsp' },
+        { ingredientName: 'Salt', quantity: 1, unit: 'pinch' },
+        { ingredientName: 'Coriander Leaves', quantity: 3, unit: 'g' },
+      ],
+    },
+    {
+      name: 'Pickle (Achar)',
+      description: 'Assorted Kerala homestyle pickles',
+      category: 'Salads',
+      pricePerPlate: 20, estimatedCostPerPlate: 6, sellingPricePerPlate: 20, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Mango Pickle', quantity: 20, unit: 'g' },
+        { ingredientName: 'Lime Pickle', quantity: 10, unit: 'g' },
+      ],
+    },
+
+    // Veg
+    {
+      name: 'Sambar',
+      description: 'Traditional South Indian lentil stew with vegetables and tamarind',
+      category: 'Veg',
+      pricePerPlate: 50, estimatedCostPerPlate: 18, sellingPricePerPlate: 50, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Toor Dal', quantity: 80, unit: 'g' },
+        { ingredientName: 'Tamarind', quantity: 10, unit: 'g' },
+        { ingredientName: 'Mixed Vegetables', quantity: 100, unit: 'g' },
+        { ingredientName: 'Sambar Powder', quantity: 2, unit: 'tsp' },
+        { ingredientName: 'Mustard Seeds', quantity: 1, unit: 'tsp' },
+        { ingredientName: 'Curry Leaves', quantity: 5, unit: 'piece' },
+      ],
+    },
+    {
+      name: 'Avial',
+      description: 'Kerala mixed vegetable curry with coconut and yogurt',
+      category: 'Veg',
+      pricePerPlate: 60, estimatedCostPerPlate: 22, sellingPricePerPlate: 60, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Mixed Vegetables (Drumstick, Yam, Raw Banana)', quantity: 200, unit: 'g' },
+        { ingredientName: 'Grated Coconut', quantity: 60, unit: 'g' },
+        { ingredientName: 'Curd', quantity: 40, unit: 'g' },
+        { ingredientName: 'Coconut Oil', quantity: 2, unit: 'tsp' },
+        { ingredientName: 'Curry Leaves', quantity: 5, unit: 'piece' },
+      ],
+    },
+    {
+      name: 'Thoran',
+      description: 'Kerala stir-fried vegetables with fresh coconut and spices',
+      category: 'Veg',
+      pricePerPlate: 45, estimatedCostPerPlate: 15, sellingPricePerPlate: 45, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Cabbage / Beans / Carrot', quantity: 150, unit: 'g' },
+        { ingredientName: 'Grated Coconut', quantity: 40, unit: 'g' },
+        { ingredientName: 'Mustard Seeds', quantity: 1, unit: 'tsp' },
+        { ingredientName: 'Red Chilli', quantity: 2, unit: 'piece' },
+        { ingredientName: 'Coconut Oil', quantity: 1, unit: 'tbsp' },
+      ],
+    },
+    {
+      name: 'Koottucurry',
+      description: 'Black chickpeas and yam cooked with freshly ground coconut masala',
+      category: 'Veg',
+      pricePerPlate: 55, estimatedCostPerPlate: 20, sellingPricePerPlate: 55, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Black Chickpeas (Kadala)', quantity: 80, unit: 'g' },
+        { ingredientName: 'Elephant Yam', quantity: 100, unit: 'g' },
+        { ingredientName: 'Grated Coconut', quantity: 60, unit: 'g' },
+        { ingredientName: 'Coconut Oil', quantity: 1, unit: 'tbsp' },
+        { ingredientName: 'Curry Leaves', quantity: 5, unit: 'piece' },
+      ],
+    },
+    {
+      name: 'Pappadam',
+      description: 'Crispy roasted or fried Kerala pappadam',
+      category: 'Veg',
+      pricePerPlate: 15, estimatedCostPerPlate: 4, sellingPricePerPlate: 15, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Pappadam', quantity: 2, unit: 'piece' },
+        { ingredientName: 'Coconut Oil', quantity: 50, unit: 'ml' },
+      ],
+    },
+    {
+      name: 'Steamed Rice',
+      description: 'Freshly steamed Kerala boiled rice',
+      category: 'Veg',
+      pricePerPlate: 30, estimatedCostPerPlate: 10, sellingPricePerPlate: 30, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Kerala Boiled Rice', quantity: 150, unit: 'g' },
+        { ingredientName: 'Water', quantity: 400, unit: 'ml' },
         { ingredientName: 'Salt', quantity: 1, unit: 'tsp' },
       ],
     },
-    // Dessert
+
+    // Drinks
     {
-      name: 'Gulab Jamun',
-      description: 'Soft milk-solid dumplings soaked in rose-flavoured sugar syrup',
-      category: 'Dessert',
-      pricePerPlate: 80,
-      estimatedCostPerPlate: 28,
-      sellingPricePerPlate: 80,
-      isVeg: true,
+      name: '500 ML Drinking Water',
+      description: 'Sealed mineral water bottle 500ml',
+      category: 'Drinks',
+      pricePerPlate: 20, estimatedCostPerPlate: 12, sellingPricePerPlate: 20, isVeg: true,
       ingredients: [
-        { ingredientName: 'Milk Powder', quantity: 80, unit: 'g' },
-        { ingredientName: 'Maida', quantity: 20, unit: 'g' },
-        { ingredientName: 'Sugar', quantity: 100, unit: 'g' },
-        { ingredientName: 'Ghee', quantity: 1, unit: 'tbsp' },
-        { ingredientName: 'Rose Water', quantity: 1, unit: 'tsp' },
+        { ingredientName: 'Mineral Water Bottle 500ml', quantity: 1, unit: 'bottle' },
+      ],
+    },
+    {
+      name: 'Buttermilk (Moru)',
+      description: 'Chilled spiced buttermilk with ginger and curry leaves',
+      category: 'Drinks',
+      pricePerPlate: 25, estimatedCostPerPlate: 8, sellingPricePerPlate: 25, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Curd', quantity: 80, unit: 'ml' },
+        { ingredientName: 'Water', quantity: 120, unit: 'ml' },
+        { ingredientName: 'Ginger', quantity: 3, unit: 'g' },
+        { ingredientName: 'Green Chilli', quantity: 1, unit: 'piece' },
+        { ingredientName: 'Curry Leaves', quantity: 3, unit: 'piece' },
+      ],
+    },
+
+    // Desserts
+    {
+      name: 'Elaneer Payasam',
+      description: 'Creamy tender coconut dessert with condensed milk and cardamom',
+      category: 'Desserts',
+      pricePerPlate: 70, estimatedCostPerPlate: 30, sellingPricePerPlate: 70, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Tender Coconut Pulp', quantity: 80, unit: 'g' },
+        { ingredientName: 'Coconut Milk', quantity: 100, unit: 'ml' },
+        { ingredientName: 'Condensed Milk', quantity: 40, unit: 'ml' },
+        { ingredientName: 'Cardamom Powder', quantity: 0.5, unit: 'tsp' },
+        { ingredientName: 'Sugar', quantity: 20, unit: 'g' },
+      ],
+    },
+    {
+      name: 'Luqaimat',
+      description: 'Arabic sweet dumplings drizzled with date syrup and sesame seeds',
+      category: 'Desserts',
+      pricePerPlate: 60, estimatedCostPerPlate: 22, sellingPricePerPlate: 60, isVeg: true,
+      ingredients: [
+        { ingredientName: 'Maida (All Purpose Flour)', quantity: 80, unit: 'g' },
+        { ingredientName: 'Yeast', quantity: 2, unit: 'g' },
+        { ingredientName: 'Date Syrup', quantity: 2, unit: 'tbsp' },
+        { ingredientName: 'Sesame Seeds', quantity: 5, unit: 'g' },
         { ingredientName: 'Oil', quantity: 200, unit: 'ml' },
       ],
     },
-    // Salad
     {
-      name: 'Garden Fresh Salad',
-      description: 'Crisp seasonal vegetables tossed with lemon dressing and herbs',
-      category: 'Salad',
-      pricePerPlate: 60,
-      estimatedCostPerPlate: 20,
-      sellingPricePerPlate: 60,
-      isVeg: true,
+      name: 'Pan Cake',
+      description: 'Soft fluffy pancakes served with honey or maple syrup',
+      category: 'Desserts',
+      pricePerPlate: 50, estimatedCostPerPlate: 18, sellingPricePerPlate: 50, isVeg: true,
       ingredients: [
-        { ingredientName: 'Cucumber', quantity: 80, unit: 'g' },
-        { ingredientName: 'Tomato', quantity: 80, unit: 'g' },
-        { ingredientName: 'Onion', quantity: 40, unit: 'g' },
-        { ingredientName: 'Carrot', quantity: 40, unit: 'g' },
-        { ingredientName: 'Lemon Juice', quantity: 1, unit: 'tbsp' },
-        { ingredientName: 'Salt', quantity: 0.5, unit: 'tsp' },
-        { ingredientName: 'Coriander Leaves', quantity: 5, unit: 'g' },
-      ],
-    },
-    // Beverage
-    {
-      name: 'Masala Chai',
-      description: 'Spiced Indian tea brewed with ginger, cardamom and milk',
-      category: 'Beverage',
-      pricePerPlate: 30,
-      estimatedCostPerPlate: 8,
-      sellingPricePerPlate: 30,
-      isVeg: true,
-      ingredients: [
-        { ingredientName: 'Tea Leaves', quantity: 5, unit: 'g' },
+        { ingredientName: 'Maida', quantity: 80, unit: 'g' },
+        { ingredientName: 'Egg', quantity: 1, unit: 'piece' },
         { ingredientName: 'Milk', quantity: 100, unit: 'ml' },
-        { ingredientName: 'Sugar', quantity: 10, unit: 'g' },
-        { ingredientName: 'Ginger', quantity: 5, unit: 'g' },
-        { ingredientName: 'Cardamom', quantity: 2, unit: 'piece' },
+        { ingredientName: 'Sugar', quantity: 15, unit: 'g' },
+        { ingredientName: 'Butter', quantity: 10, unit: 'g' },
+        { ingredientName: 'Honey', quantity: 1, unit: 'tbsp' },
       ],
     },
-    // Snack
     {
-      name: 'Samosa (2 pcs)',
-      description: 'Crispy pastry filled with spiced potato and peas, served with chutney',
-      category: 'Snack',
-      pricePerPlate: 50,
-      estimatedCostPerPlate: 18,
-      sellingPricePerPlate: 50,
-      isVeg: true,
+      name: 'Semiya Payasam',
+      description: 'Sweet vermicelli kheer with cashews and raisins in rich milk',
+      category: 'Desserts',
+      pricePerPlate: 55, estimatedCostPerPlate: 20, sellingPricePerPlate: 55, isVeg: true,
       ingredients: [
-        { ingredientName: 'Maida', quantity: 60, unit: 'g' },
-        { ingredientName: 'Potato', quantity: 100, unit: 'g' },
-        { ingredientName: 'Peas', quantity: 30, unit: 'g' },
-        { ingredientName: 'Oil', quantity: 200, unit: 'ml' },
-        { ingredientName: 'Cumin Seeds', quantity: 1, unit: 'tsp' },
-        { ingredientName: 'Coriander Powder', quantity: 1, unit: 'tsp' },
+        { ingredientName: 'Semiya (Vermicelli)', quantity: 50, unit: 'g' },
+        { ingredientName: 'Milk', quantity: 250, unit: 'ml' },
+        { ingredientName: 'Sugar', quantity: 50, unit: 'g' },
+        { ingredientName: 'Cashew Nuts', quantity: 10, unit: 'g' },
+        { ingredientName: 'Raisins', quantity: 8, unit: 'g' },
+        { ingredientName: 'Ghee', quantity: 1, unit: 'tbsp' },
+        { ingredientName: 'Cardamom Powder', quantity: 0.5, unit: 'tsp' },
       ],
     },
   ]
 
-  // Track dish IDs for linking to events
   const dishIds: Record<string, string> = {}
-
-  for (const dish of sampleDishes) {
-    const existing = await prisma.dish.findFirst({
-      where: { name: dish.name },
+  for (const dish of dishes) {
+    const { ingredients, ...dishData } = dish
+    const created = await prisma.dish.create({
+      data: {
+        ...dishData,
+        ingredients: { create: ingredients },
+      },
     })
+    dishIds[dish.name] = created.id
+  }
+  console.log(`✅ Created ${dishes.length} dishes`)
 
-    if (!existing) {
-      const { ingredients, ...dishData } = dish
-      const created = await prisma.dish.create({
-        data: {
-          ...dishData,
-          ingredients: {
-            create: ingredients,
+  // ── Events ───────────────────────────────────────────────────────────────────
+  type EventDishInput = { name: string; qty: number; price: number }
+
+  const eventData: Array<{
+    event: Parameters<typeof prisma.event.create>[0]['data']
+    dishes: EventDishInput[]
+    services: Array<{ serviceName: string; description?: string; price: number }>
+  }> = [
+    {
+      event: {
+        name: "Ahmed Khan's Nikkah",
+        eventType: 'MAIN_EVENT',
+        status: 'UPCOMING',
+        clientName: 'Ahmed Khan',
+        clientContact: '9946 112 233',
+        location: 'Al-Ameen Convention Centre, Manjeri',
+        eventDate: new Date('2026-03-15'),
+        eventTime: '10:00 AM',
+        guestCount: 800,
+        totalAmount: 320000,
+        paidAmount: 150000,
+        balanceAmount: 170000,
+        notes: 'Box counter setup. Herbal tea counter required from morning.',
+        createdById: admin.id,
+      },
+      dishes: [
+        { name: 'Fresh Fruits Juice Live (5 Types)', qty: 800, price: 80 },
+        { name: 'Ginger Tea', qty: 800, price: 25 },
+        { name: 'Cardamom Tea', qty: 800, price: 25 },
+        { name: 'Beef Biriyani', qty: 800, price: 280 },
+        { name: 'Chicken Fry', qty: 800, price: 160 },
+        { name: 'Beef Varattu', qty: 800, price: 180 },
+        { name: 'Raita', qty: 800, price: 40 },
+        { name: 'Pickle (Achar)', qty: 800, price: 20 },
+        { name: 'Avial', qty: 800, price: 60 },
+        { name: 'Pappadam', qty: 800, price: 15 },
+        { name: '500 ML Drinking Water', qty: 800, price: 20 },
+        { name: 'Elaneer Payasam', qty: 800, price: 70 },
+      ],
+      services: [
+        { serviceName: 'Welcome Counter', price: 5000 },
+        { serviceName: 'Ceramic Plates', price: 8000 },
+        { serviceName: 'Box Counter (6)', price: 12000 },
+        { serviceName: 'Service Staffs', price: 15000 },
+        { serviceName: 'House Keeping', price: 5000 },
+      ],
+    },
+    {
+      event: {
+        name: "Fathima & Salim Wedding Reception",
+        eventType: 'MAIN_EVENT',
+        status: 'UPCOMING',
+        clientName: 'Salim P.K.',
+        clientContact: '9876 543 210',
+        location: 'Star Convention Hall, Malappuram',
+        eventDate: new Date('2026-04-10'),
+        eventTime: '11:00 AM',
+        guestCount: 1200,
+        totalAmount: 480000,
+        paidAmount: 200000,
+        balanceAmount: 280000,
+        notes: 'Full Malabar spread. Buffet setup.',
+        createdById: admin.id,
+      },
+      dishes: [
+        { name: 'Tender Coconut Water (Elaneer)', qty: 1200, price: 60 },
+        { name: 'Mint Tea', qty: 1200, price: 25 },
+        { name: 'Cinnamon Tea', qty: 1200, price: 30 },
+        { name: 'Mutton Biriyani', qty: 1200, price: 320 },
+        { name: 'Chicken Kabiri', qty: 600, price: 250 },
+        { name: 'Chicken Fry', qty: 1200, price: 160 },
+        { name: 'Fish Fry', qty: 600, price: 200 },
+        { name: 'Raita', qty: 1200, price: 40 },
+        { name: 'Sambar', qty: 1200, price: 50 },
+        { name: 'Avial', qty: 1200, price: 60 },
+        { name: 'Thoran', qty: 1200, price: 45 },
+        { name: 'Pappadam', qty: 1200, price: 15 },
+        { name: '500 ML Drinking Water', qty: 1200, price: 20 },
+        { name: 'Elaneer Payasam', qty: 1200, price: 70 },
+        { name: 'Luqaimat', qty: 1200, price: 60 },
+      ],
+      services: [
+        { serviceName: 'Welcome Counter', price: 8000 },
+        { serviceName: 'Ceramic Plates', price: 15000 },
+        { serviceName: 'Buffet Setup (Full)', price: 25000 },
+        { serviceName: 'Service Staffs (20)', price: 30000 },
+        { serviceName: 'Hosting Boys', price: 10000 },
+        { serviceName: 'House Keeping', price: 8000 },
+      ],
+    },
+    {
+      event: {
+        name: "Rahul & Meera Engagement",
+        eventType: 'MAIN_EVENT',
+        status: 'IN_PROGRESS',
+        clientName: 'Rahul Nair',
+        clientContact: '9745 001 122',
+        location: 'Royal Garden, Tirur',
+        eventDate: new Date('2026-02-20'),
+        eventTime: '05:00 PM',
+        guestCount: 500,
+        totalAmount: 180000,
+        paidAmount: 90000,
+        balanceAmount: 90000,
+        notes: 'Evening event. Starters and dessert focused menu.',
+        createdById: admin.id,
+      },
+      dishes: [
+        { name: 'Fresh Fruits Juice Live (5 Types)', qty: 500, price: 80 },
+        { name: 'Ginger Tea', qty: 500, price: 25 },
+        { name: 'Green Tea', qty: 500, price: 30 },
+        { name: 'Beef Biriyani', qty: 500, price: 280 },
+        { name: 'Chicken Fry', qty: 500, price: 160 },
+        { name: 'Raita', qty: 500, price: 40 },
+        { name: 'Koottucurry', qty: 500, price: 55 },
+        { name: 'Pappadam', qty: 500, price: 15 },
+        { name: 'Buttermilk (Moru)', qty: 500, price: 25 },
+        { name: 'Semiya Payasam', qty: 500, price: 55 },
+        { name: 'Pan Cake', qty: 500, price: 50 },
+      ],
+      services: [
+        { serviceName: 'Welcome Counter', price: 4000 },
+        { serviceName: 'Service Staffs (10)', price: 12000 },
+        { serviceName: 'All Service Equipment', price: 8000 },
+        { serviceName: 'Table Mat & Tissue Papers', price: 3000 },
+      ],
+    },
+    {
+      event: {
+        name: "Johnson Family Birthday Party",
+        eventType: 'MAIN_EVENT',
+        status: 'COMPLETED',
+        clientName: 'Johnson Thomas',
+        clientContact: '9895 667 788',
+        location: 'Johnson Residence, Perinthalmanna',
+        eventDate: new Date('2026-01-20'),
+        eventTime: '06:30 PM',
+        guestCount: 300,
+        totalAmount: 105000,
+        paidAmount: 105000,
+        balanceAmount: 0,
+        notes: 'Christian family. Mix of veg and non-veg.',
+        createdById: admin.id,
+      },
+      dishes: [
+        { name: 'Fresh Fruits Juice Live (5 Types)', qty: 300, price: 80 },
+        { name: 'Chicken Kabiri', qty: 300, price: 250 },
+        { name: 'Chicken Fry', qty: 300, price: 160 },
+        { name: 'Fish Fry', qty: 300, price: 200 },
+        { name: 'Raita', qty: 300, price: 40 },
+        { name: 'Avial', qty: 300, price: 60 },
+        { name: 'Thoran', qty: 300, price: 45 },
+        { name: 'Pappadam', qty: 300, price: 15 },
+        { name: '500 ML Drinking Water', qty: 300, price: 20 },
+        { name: 'Elaneer Payasam', qty: 300, price: 70 },
+      ],
+      services: [
+        { serviceName: 'Ceramic Plates', price: 4000 },
+        { serviceName: 'Service Staffs (8)', price: 10000 },
+        { serviceName: 'House Keeping', price: 3000 },
+      ],
+    },
+    {
+      event: {
+        name: "Malabar Hospital Annual Staff Lunch",
+        eventType: 'MAIN_EVENT',
+        status: 'UPCOMING',
+        clientName: 'Dr. Nafeesa (HR Head)',
+        clientContact: '9061 445 566',
+        location: 'Malabar Medical College, Calicut',
+        eventDate: new Date('2026-03-25'),
+        eventTime: '01:00 PM',
+        guestCount: 400,
+        totalAmount: 140000,
+        paidAmount: 70000,
+        balanceAmount: 70000,
+        notes: 'Corporate lunch. Buffet counters needed. No beef.',
+        createdById: admin.id,
+      },
+      dishes: [
+        { name: 'Tender Coconut Water (Elaneer)', qty: 400, price: 60 },
+        { name: 'Lime Tea', qty: 400, price: 25 },
+        { name: 'Chicken Kabiri', qty: 400, price: 250 },
+        { name: 'Chicken Fry', qty: 400, price: 160 },
+        { name: 'Sambar', qty: 400, price: 50 },
+        { name: 'Avial', qty: 400, price: 60 },
+        { name: 'Thoran', qty: 400, price: 45 },
+        { name: 'Koottucurry', qty: 400, price: 55 },
+        { name: 'Pappadam', qty: 400, price: 15 },
+        { name: 'Steamed Rice', qty: 400, price: 30 },
+        { name: '500 ML Drinking Water', qty: 400, price: 20 },
+        { name: 'Semiya Payasam', qty: 400, price: 55 },
+      ],
+      services: [
+        { serviceName: 'Buffet Setup (Full)', price: 12000 },
+        { serviceName: 'Service Staffs (12)', price: 15000 },
+        { serviceName: 'Table Mat & Tissue Papers', price: 2500 },
+        { serviceName: 'House Keeping', price: 4000 },
+      ],
+    },
+    {
+      event: {
+        name: "Salam Century Nikkah",
+        eventType: 'MAIN_EVENT',
+        status: 'UPCOMING',
+        clientName: 'Mr. Salam',
+        clientContact: '85 90 114 309',
+        location: 'Century Auditorium, Manjeri',
+        eventDate: new Date('2026-03-29'),
+        eventTime: '10:00 AM',
+        guestCount: 1800,
+        totalAmount: 720000,
+        paidAmount: 300000,
+        balanceAmount: 420000,
+        notes: 'Nikkah ceremony. Box counter setup x6. Herbal tea counter from 9am.',
+        createdById: admin.id,
+      },
+      dishes: [
+        { name: 'Fresh Fruits Juice Live (5 Types)', qty: 1800, price: 80 },
+        { name: 'Ginger Tea', qty: 1800, price: 25 },
+        { name: 'Mint Tea', qty: 1800, price: 25 },
+        { name: 'Lime Tea', qty: 1800, price: 25 },
+        { name: 'Green Tea', qty: 1800, price: 30 },
+        { name: 'Cinnamon Tea', qty: 1800, price: 30 },
+        { name: 'Cardamom Tea', qty: 1800, price: 25 },
+        { name: 'Beef Biriyani', qty: 1800, price: 280 },
+        { name: 'Chicken Kabiri', qty: 1800, price: 250 },
+        { name: 'Chicken Fry', qty: 1800, price: 160 },
+        { name: 'Beef Varattu', qty: 1800, price: 180 },
+        { name: 'Raita', qty: 1800, price: 40 },
+        { name: 'Pickle (Achar)', qty: 1800, price: 20 },
+        { name: 'Steamed Rice', qty: 1800, price: 30 },
+        { name: 'Sambar', qty: 1800, price: 50 },
+        { name: 'Avial', qty: 1800, price: 60 },
+        { name: 'Thoran', qty: 1800, price: 45 },
+        { name: 'Koottucurry', qty: 1800, price: 55 },
+        { name: 'Pappadam', qty: 1800, price: 15 },
+        { name: '500 ML Drinking Water', qty: 1800, price: 20 },
+        { name: 'Elaneer Payasam', qty: 1800, price: 70 },
+        { name: 'Luqaimat', qty: 1800, price: 60 },
+        { name: 'Pan Cake', qty: 1800, price: 50 },
+      ],
+      services: [
+        { serviceName: 'Welcome Counter', price: 10000 },
+        { serviceName: 'Ceramic Plates', price: 20000 },
+        { serviceName: 'All Service Equipment', price: 15000 },
+        { serviceName: 'Box Counter (6)', price: 18000 },
+        { serviceName: 'Service Staffs (25)', price: 40000 },
+        { serviceName: 'Hosting Boys', price: 15000 },
+        { serviceName: 'House Keeping', price: 10000 },
+        { serviceName: 'Toothpick & Sweet Saunf', price: 2000 },
+        { serviceName: 'Table Mat', price: 5000 },
+        { serviceName: 'Waste Cover', price: 3000 },
+        { serviceName: 'Hand Wash & Tissue Papers', price: 4000 },
+      ],
+    },
+  ]
+
+  for (const { event, dishes: evDishes, services } of eventData) {
+    const validDishes = evDishes
+      .filter(d => dishIds[d.name])
+      .map(d => ({
+        dishId: dishIds[d.name],
+        quantity: d.qty,
+        pricePerPlate: d.price,
+      }))
+
+    await prisma.event.create({
+      data: {
+        ...(event as any),
+        dishes: validDishes.length > 0 ? { create: validDishes } : undefined,
+        services: services.length > 0
+          ? { create: services.map(s => ({ serviceName: s.serviceName, description: s.description, price: s.price })) }
+          : undefined,
+      },
+    })
+    console.log(`✅ Created event: ${(event as any).name}`)
+  }
+
+  // ── Enquiries ────────────────────────────────────────────────────────────────
+  const enquiryCount = await prisma.enquiry.count()
+
+  const enquiries = [
+    // PENDING
+    {
+      quotationNumber: `QT-2026-0001`,
+      clientName: 'Abdullah Haji',
+      clientContact: '9946 778 899',
+      peopleCount: 1500,
+      location: 'Noor Convention Centre, Tirur',
+      eventDate: new Date('2026-04-25'),
+      eventTime: '10:00 AM',
+      status: 'PENDING' as const,
+      totalAmount: 600000,
+      createdById: admin.id,
+      dishes: [
+        { name: 'Fresh Fruits Juice Live (5 Types)', qty: 1500, price: 80 },
+        { name: 'Ginger Tea', qty: 1500, price: 25 },
+        { name: 'Cardamom Tea', qty: 1500, price: 25 },
+        { name: 'Beef Biriyani', qty: 1500, price: 280 },
+        { name: 'Chicken Kabiri', qty: 1500, price: 250 },
+        { name: 'Chicken Fry', qty: 1500, price: 160 },
+        { name: 'Beef Varattu', qty: 1500, price: 180 },
+        { name: 'Raita', qty: 1500, price: 40 },
+        { name: 'Avial', qty: 1500, price: 60 },
+        { name: 'Pappadam', qty: 1500, price: 15 },
+        { name: '500 ML Drinking Water', qty: 1500, price: 20 },
+        { name: 'Elaneer Payasam', qty: 1500, price: 70 },
+        { name: 'Luqaimat', qty: 1500, price: 60 },
+      ],
+      services: [
+        { serviceName: 'Welcome Counter', price: 8000 },
+        { serviceName: 'Ceramic Plates', price: 18000 },
+        { serviceName: 'Box Counter (8)', price: 20000 },
+        { serviceName: 'Service Staffs (20)', price: 35000 },
+        { serviceName: 'House Keeping', price: 8000 },
+      ],
+    },
+    // PENDING
+    {
+      quotationNumber: `QT-2026-0002`,
+      clientName: 'Mohideen Kutty',
+      clientContact: '9895 334 455',
+      peopleCount: 1000,
+      location: 'Siraj Convention Hall, Kondotty',
+      eventDate: new Date('2026-05-05'),
+      eventTime: '11:00 AM',
+      status: 'PENDING' as const,
+      totalAmount: 390000,
+      createdById: admin.id,
+      dishes: [
+        { name: 'Tender Coconut Water (Elaneer)', qty: 1000, price: 60 },
+        { name: 'Mint Tea', qty: 1000, price: 25 },
+        { name: 'Cinnamon Tea', qty: 1000, price: 30 },
+        { name: 'Mutton Biriyani', qty: 1000, price: 320 },
+        { name: 'Chicken Fry', qty: 1000, price: 160 },
+        { name: 'Fish Fry', qty: 500, price: 200 },
+        { name: 'Raita', qty: 1000, price: 40 },
+        { name: 'Pickle (Achar)', qty: 1000, price: 20 },
+        { name: 'Sambar', qty: 1000, price: 50 },
+        { name: 'Pappadam', qty: 1000, price: 15 },
+        { name: '500 ML Drinking Water', qty: 1000, price: 20 },
+        { name: 'Semiya Payasam', qty: 1000, price: 55 },
+      ],
+      services: [
+        { serviceName: 'Welcome Counter', price: 5000 },
+        { serviceName: 'Ceramic Plates', price: 12000 },
+        { serviceName: 'Box Counter (5)', price: 12000 },
+        { serviceName: 'Service Staffs (15)', price: 22000 },
+        { serviceName: 'Hosting Boys', price: 8000 },
+      ],
+    },
+    // LOST
+    {
+      quotationNumber: `QT-2026-0003`,
+      clientName: 'Ravi Shankar',
+      clientContact: '9745 223 344',
+      peopleCount: 500,
+      location: 'Green Lawns, Palakkad',
+      eventDate: new Date('2026-02-28'),
+      eventTime: '07:00 PM',
+      status: 'LOST' as const,
+      totalAmount: 195000,
+      createdById: admin.id,
+      dishes: [
+        { name: 'Fresh Fruits Juice Live (5 Types)', qty: 500, price: 80 },
+        { name: 'Chicken Kabiri', qty: 500, price: 250 },
+        { name: 'Chicken Fry', qty: 500, price: 160 },
+        { name: 'Raita', qty: 500, price: 40 },
+        { name: 'Avial', qty: 500, price: 60 },
+        { name: '500 ML Drinking Water', qty: 500, price: 20 },
+        { name: 'Elaneer Payasam', qty: 500, price: 70 },
+      ],
+      services: [
+        { serviceName: 'Buffet Setup', price: 10000 },
+        { serviceName: 'Service Staffs', price: 12000 },
+      ],
+    },
+    // PENDING
+    {
+      quotationNumber: `QT-2026-0004`,
+      clientName: 'Basheer M.P.',
+      clientContact: '9061 556 677',
+      peopleCount: 600,
+      location: 'Hilal Marriage Hall, Tirur',
+      eventDate: new Date('2026-06-01'),
+      eventTime: '10:00 AM',
+      status: 'PENDING' as const,
+      totalAmount: 240000,
+      createdById: admin.id,
+      dishes: [
+        { name: 'Fresh Fruits Juice Live (5 Types)', qty: 600, price: 80 },
+        { name: 'Ginger Tea', qty: 600, price: 25 },
+        { name: 'Lime Tea', qty: 600, price: 25 },
+        { name: 'Beef Biriyani', qty: 600, price: 280 },
+        { name: 'Chicken Fry', qty: 600, price: 160 },
+        { name: 'Beef Varattu', qty: 600, price: 180 },
+        { name: 'Raita', qty: 600, price: 40 },
+        { name: 'Koottucurry', qty: 600, price: 55 },
+        { name: 'Pappadam', qty: 600, price: 15 },
+        { name: '500 ML Drinking Water', qty: 600, price: 20 },
+        { name: 'Elaneer Payasam', qty: 600, price: 70 },
+        { name: 'Luqaimat', qty: 600, price: 60 },
+      ],
+      services: [
+        { serviceName: 'Welcome Counter', price: 5000 },
+        { serviceName: 'Ceramic Plates', price: 8000 },
+        { serviceName: 'Box Counter (4)', price: 10000 },
+        { serviceName: 'Service Staffs (12)', price: 18000 },
+      ],
+    },
+  ]
+
+  for (const eq of enquiries) {
+    const { dishes: eqDishes, services: eqServices, ...eqData } = eq
+    const validDishes = eqDishes
+      .filter(d => dishIds[d.name])
+      .map(d => ({ dishId: dishIds[d.name], quantity: d.qty, pricePerPlate: d.price }))
+
+    await prisma.enquiry.create({
+      data: {
+        ...eqData,
+        dishes: { create: validDishes },
+        services: { create: eqServices.map(s => ({ serviceName: s.serviceName, price: s.price })) },
+        updates: {
+          create: {
+            updateType: 'STATUS_CHANGE',
+            description: `Enquiry created with status ${eqData.status}`,
+            newValue: eqData.status,
           },
         },
-      })
-      dishIds[dish.name] = created.id
-      console.log(`✅ Created sample dish: ${dish.name}`)
-    } else {
-      dishIds[dish.name] = existing.id
-      console.log(`ℹ️  Dish already exists: ${dish.name}`)
-    }
+      },
+    })
+    console.log(`✅ Created enquiry: ${eqData.quotationNumber} — ${eqData.clientName} (${eqData.status})`)
   }
 
-  // Create sample events
-  const sampleEvents = [
-    {
-      name: 'Sharma Wedding Reception',
-      eventType: 'MAIN_EVENT' as const,
-      status: 'COMPLETED' as const,
-      clientName: 'Rajesh Sharma',
-      clientContact: '9876543210',
-      location: 'The Grand Banquet Hall, MG Road, Bangalore',
-      eventDate: new Date('2025-12-15'),
-      eventTime: '07:00 PM',
-      guestCount: 350,
-      totalAmount: 175000,
-      paidAmount: 175000,
-      balanceAmount: 0,
-      notes: 'Full veg menu. Client preferred no onion/garlic in some dishes.',
-    },
-    {
-      name: 'Mehta Birthday Celebration',
-      eventType: 'MAIN_EVENT' as const,
-      status: 'COMPLETED' as const,
-      clientName: 'Priya Mehta',
-      clientContact: '9845001234',
-      location: 'Mehta Residence, Koramangala, Bangalore',
-      eventDate: new Date('2026-01-10'),
-      eventTime: '06:30 PM',
-      guestCount: 120,
-      totalAmount: 60000,
-      paidAmount: 60000,
-      balanceAmount: 0,
-      notes: 'Mix of veg and non-veg. Birthday cake arranged separately.',
-    },
-    {
-      name: 'Iyer Anniversary Dinner',
-      eventType: 'MAIN_EVENT' as const,
-      status: 'UPCOMING' as const,
-      clientName: 'Suresh Iyer',
-      clientContact: '9900112233',
-      location: 'Taj Hotel Banquet, Residency Road, Bangalore',
-      eventDate: new Date('2026-03-20'),
-      eventTime: '08:00 PM',
-      guestCount: 200,
-      totalAmount: 120000,
-      paidAmount: 60000,
-      balanceAmount: 60000,
-      notes: 'South Indian theme. Live dosa counter required.',
-    },
-    {
-      name: 'Tech Corp Annual Day Lunch',
-      eventType: 'MAIN_EVENT' as const,
-      status: 'UPCOMING' as const,
-      clientName: 'Anita Reddy (Tech Corp HR)',
-      clientContact: '9123456780',
-      location: 'Tech Corp Campus, Whitefield, Bangalore',
-      eventDate: new Date('2026-04-05'),
-      eventTime: '01:00 PM',
-      guestCount: 500,
-      totalAmount: 200000,
-      paidAmount: 100000,
-      balanceAmount: 100000,
-      notes: 'Corporate lunch. Strictly no alcohol. Need 30% vegan options.',
-    },
-    {
-      name: 'Kapoor Engagement',
-      eventType: 'MAIN_EVENT' as const,
-      status: 'IN_PROGRESS' as const,
-      clientName: 'Vikram Kapoor',
-      clientContact: '9988776655',
-      location: 'Lakeview Gardens, Indiranagar, Bangalore',
-      eventDate: new Date('2026-02-20'),
-      eventTime: '05:00 PM',
-      guestCount: 180,
-      totalAmount: 90000,
-      paidAmount: 45000,
-      balanceAmount: 45000,
-      notes: 'Cocktail-style setup. Starters and dessert buffet.',
-    },
-    {
-      name: 'Rice Delivery - Hotel Sunrise',
-      eventType: 'LOCAL_ORDER' as const,
-      status: 'COMPLETED' as const,
-      clientName: 'Hotel Sunrise Kitchen',
-      clientContact: '8012345678',
-      location: 'Hotel Sunrise, Brigade Road, Bangalore',
-      eventDate: new Date('2026-01-25'),
-      eventTime: '10:00 AM',
-      guestCount: 0,
-      totalAmount: 8500,
-      paidAmount: 8500,
-      balanceAmount: 0,
-      notes: '50kg basmati rice + 10kg dal delivery.',
-    },
-    {
-      name: 'Bulk Snack Order - Office Canteen',
-      eventType: 'LOCAL_ORDER' as const,
-      status: 'UPCOMING' as const,
-      clientName: 'Infosys Canteen Manager',
-      clientContact: '9071234560',
-      location: 'Infosys Campus, Electronic City, Bangalore',
-      eventDate: new Date('2026-03-01'),
-      eventTime: '09:00 AM',
-      guestCount: 0,
-      totalAmount: 12000,
-      paidAmount: 12000,
-      balanceAmount: 0,
-      notes: '200 samosas + 100 spring rolls for morning snack break.',
-    },
+  // ── Todos ────────────────────────────────────────────────────────────────────
+  const todos = [
+    { title: 'Confirm venue booking for Ahmed Khan Nikkah', priority: 'HIGH', dueDate: new Date('2026-03-01') },
+    { title: 'Order 50 boxes of mineral water for Salam event', priority: 'HIGH', dueDate: new Date('2026-03-25') },
+    { title: 'Arrange extra service staffs for Fathima Wedding', priority: 'NORMAL', dueDate: new Date('2026-04-05') },
+    { title: 'Follow up with Abdullah Haji on menu confirmation', priority: 'NORMAL', dueDate: new Date('2026-02-25') },
+    { title: 'Purchase ceramic plates - 2000 pcs', priority: 'HIGH', dueDate: new Date('2026-03-10') },
+    { title: 'Renew vehicle insurance for delivery van', priority: 'LOW', dueDate: new Date('2026-03-31') },
+    { title: 'Send menu PDF to Mohideen Kutty', priority: 'NORMAL', dueDate: new Date('2026-02-22') },
   ]
 
-  // Dish assignments per event
-  const eventDishes: Record<string, Array<{ dishName: string; quantity: number; pricePerPlate: number }>> = {
-    'Sharma Wedding Reception': [
-      { dishName: 'Paneer Tikka Masala', quantity: 350, pricePerPlate: 200 },
-      { dishName: 'Dal Makhani',          quantity: 350, pricePerPlate: 150 },
-      { dishName: 'Veg Biryani',          quantity: 350, pricePerPlate: 160 },
-      { dishName: 'Butter Naan',          quantity: 350, pricePerPlate: 40  },
-      { dishName: 'Gulab Jamun',          quantity: 350, pricePerPlate: 80  },
-    ],
-    'Mehta Birthday Celebration': [
-      { dishName: 'Butter Chicken',       quantity: 120, pricePerPlate: 250 },
-      { dishName: 'Chicken Biryani',      quantity: 120, pricePerPlate: 220 },
-      { dishName: 'Garden Fresh Salad',   quantity: 120, pricePerPlate: 60  },
-      { dishName: 'Gulab Jamun',          quantity: 120, pricePerPlate: 80  },
-    ],
-    'Iyer Anniversary Dinner': [
-      { dishName: 'Veg Spring Rolls',     quantity: 200, pricePerPlate: 120 },
-      { dishName: 'Dal Makhani',          quantity: 200, pricePerPlate: 150 },
-      { dishName: 'Veg Biryani',          quantity: 200, pricePerPlate: 160 },
-      { dishName: 'Butter Naan',          quantity: 200, pricePerPlate: 40  },
-      { dishName: 'Masala Chai',          quantity: 200, pricePerPlate: 30  },
-    ],
-    'Tech Corp Annual Day Lunch': [
-      { dishName: 'Paneer Tikka Masala',  quantity: 500, pricePerPlate: 200 },
-      { dishName: 'Dal Makhani',          quantity: 500, pricePerPlate: 150 },
-      { dishName: 'Veg Biryani',          quantity: 500, pricePerPlate: 160 },
-      { dishName: 'Garden Fresh Salad',   quantity: 500, pricePerPlate: 60  },
-      { dishName: 'Butter Naan',          quantity: 500, pricePerPlate: 40  },
-    ],
-    'Kapoor Engagement': [
-      { dishName: 'Veg Spring Rolls',     quantity: 180, pricePerPlate: 120 },
-      { dishName: 'Chicken Tikka',        quantity: 180, pricePerPlate: 180 },
-      { dishName: 'Samosa (2 pcs)',        quantity: 180, pricePerPlate: 50  },
-      { dishName: 'Gulab Jamun',          quantity: 180, pricePerPlate: 80  },
-    ],
-    'Rice Delivery - Hotel Sunrise': [
-      { dishName: 'Veg Biryani',          quantity: 50, pricePerPlate: 160 },
-    ],
-    'Bulk Snack Order - Office Canteen': [
-      { dishName: 'Samosa (2 pcs)',        quantity: 200, pricePerPlate: 50 },
-      { dishName: 'Veg Spring Rolls',     quantity: 100, pricePerPlate: 120 },
-    ],
-  }
-
-  for (const event of sampleEvents) {
-    const existing = await prisma.event.findFirst({
-      where: { name: event.name },
+  for (const todo of todos) {
+    await prisma.todo.create({
+      data: { ...todo, createdById: admin.id },
     })
-
-    if (!existing) {
-      const dishes = (eventDishes[event.name] || [])
-        .filter(d => dishIds[d.dishName])
-        .map(d => ({
-          dishId: dishIds[d.dishName],
-          quantity: d.quantity,
-          pricePerPlate: d.pricePerPlate,
-        }))
-
-      await prisma.event.create({
-        data: {
-          ...event,
-          createdById: admin.id,
-          dishes: dishes.length > 0 ? { create: dishes } : undefined,
-        },
-      })
-      console.log(`✅ Created sample event: ${event.name}`)
-    } else {
-      console.log(`ℹ️  Event already exists: ${event.name}`)
-    }
   }
+  console.log(`✅ Created ${todos.length} todos`)
 
-  console.log('🎉 Seeding completed!')
+  console.log('\n🎉 Seeding completed!\n')
+  console.log('─────────────────────────────────────')
+  console.log('  Login: admin@caterpro.com')
+  console.log('  Password: admin123')
+  console.log('─────────────────────────────────────\n')
 }
 
 main()

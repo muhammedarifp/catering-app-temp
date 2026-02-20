@@ -408,6 +408,8 @@ interface MenuData {
   eventDate: Date | string
   eventTime: string
   peopleCount: number
+  occasion?: string      // e.g. "NIKKAH", "WEDDING", "BIRTHDAY"
+  serviceType?: string   // e.g. "BOX COUNTER", "BUFFET"
   dishes: Array<{
     quantity: number
     pricePerPlate: DecimalLike
@@ -419,34 +421,38 @@ interface MenuData {
   }>
 }
 
+function fmtMenuDate(d: Date | string): string {
+  const date = new Date(d)
+  const dd = String(date.getDate()).padStart(2, '0')
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const yy = String(date.getFullYear()).slice(2)
+  const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+  const day = days[date.getDay()]
+  return `${dd}.${mm}.${yy} & ${day}`
+}
+
 function generateMenuHTML(data: MenuData): string {
-  const dishRows = data.dishes.map(d => `
-    <tr>
-      <td>${d.dish?.name || '—'}</td>
-      <td class="muted">${d.dish?.category || ''}</td>
-      <td class="center">${d.quantity} plates</td>
-    </tr>
+  // Group dishes by category (preserving insertion order)
+  const groups: Map<string, string[]> = new Map()
+  for (const d of data.dishes) {
+    const cat = (d.dish?.category || 'Others').toUpperCase()
+    if (!groups.has(cat)) groups.set(cat, [])
+    groups.get(cat)!.push(d.dish?.name || '—')
+  }
+
+  const menuSections = Array.from(groups.entries()).map(([category, items]) => `
+    <div class="menu-section">
+      <div class="course-title">${category}</div>
+      ${items.map(item => `<div class="menu-item">&#10148;&nbsp;${item}</div>`).join('')}
+    </div>
   `).join('')
 
-  const serviceRows = data.services.length > 0 ? `
-    <div class="section">
-      <h3 class="section-title">Additional Services</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Service</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.services.map(s => `
-            <tr>
-              <td>${s.serviceName}</td>
-              <td class="muted">${s.description || '—'}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+  const benefitsSection = data.services.length > 0 ? `
+    <div class="menu-section">
+      <div class="course-title">CUSTOMER BENEFITS</div>
+      <ul class="benefits-list">
+        ${data.services.map(s => `<li>${s.serviceName}${s.description ? ` <span class="desc">(${s.description})</span>` : ''}</li>`).join('')}
+      </ul>
     </div>
   ` : ''
 
@@ -459,224 +465,205 @@ function generateMenuHTML(data: MenuData): string {
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      font-size: 12px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
       color: #1a1a1a;
       background: #fff;
-      line-height: 1.6;
+      line-height: 1.7;
     }
 
     .page {
       max-width: 794px;
       margin: 0 auto;
-      padding: 40px 48px;
+      padding: 40px 56px;
     }
 
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding-bottom: 24px;
-      border-bottom: 3px solid #18181b;
-      margin-bottom: 32px;
-    }
-
-    .brand h1 {
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      color: #18181b;
-    }
-
-    .brand p {
-      font-size: 11px;
-      color: #71717a;
-      margin-top: 2px;
-    }
-
-    .doc-meta { text-align: right; }
-
-    .doc-meta .doc-type {
-      font-size: 20px;
-      font-weight: 700;
-      color: #18181b;
-    }
-
-    .doc-meta .doc-ref {
-      font-size: 11px;
-      color: #52525b;
-      margin-top: 6px;
-      line-height: 1.8;
-    }
-
-    .info-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
+    /* ── Logo / Brand ── */
+    .brand-header {
+      text-align: center;
       margin-bottom: 28px;
     }
 
-    .info-card {
-      background: #f4f4f5;
-      border-radius: 10px;
-      padding: 16px 20px;
+    .brand-box {
+      display: inline-block;
+      background: #1a3a3a;
+      color: #fff;
+      padding: 18px 36px;
+      border-radius: 6px;
     }
 
-    .info-card h4 {
+    .brand-box .brand-name {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 2px;
+    }
+
+    .brand-box .brand-sub {
       font-size: 10px;
-      font-weight: 700;
+      letter-spacing: 3px;
+      color: #c9a96e;
+      margin-top: 2px;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: #71717a;
+    }
+
+    .brand-box .brand-tag {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: #aaa;
+      margin-top: 1px;
+      text-transform: uppercase;
+    }
+
+    /* ── Info Table ── */
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 28px;
+      font-size: 12px;
+    }
+
+    .info-table td {
+      border: 1px solid #555;
+      padding: 9px 14px;
+    }
+
+    .info-table .lbl {
+      font-weight: 800;
+      text-transform: uppercase;
+      white-space: nowrap;
+      width: 120px;
+    }
+
+    .info-table .val {
+      font-weight: 500;
+    }
+
+    /* ── Course Sections ── */
+    .menu-section {
+      margin-bottom: 14px;
+    }
+
+    .course-title {
+      font-size: 14px;
+      font-weight: 900;
+      text-decoration: underline;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      margin-top: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .menu-item {
+      font-size: 13px;
+      padding: 1px 0 1px 24px;
+      color: #1a1a1a;
+    }
+
+    /* ── Customer Benefits ── */
+    .benefits-list {
+      list-style: disc;
+      padding-left: 40px;
+    }
+
+    .benefits-list li {
+      padding: 1px 0;
+      font-size: 13px;
+    }
+
+    .desc {
+      color: #555;
+      font-size: 11px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 40px;
+      border-top: 2px dashed #999;
+      padding-top: 20px;
+      text-align: center;
+    }
+
+    .footer .brand-footer {
+      display: inline-block;
+      background: #1a3a3a;
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 4px;
       margin-bottom: 10px;
     }
 
-    .info-card p {
-      font-size: 12px;
-      color: #18181b;
-      font-weight: 500;
-      margin-bottom: 4px;
-    }
+    .footer .brand-footer .fn { font-size: 14px; font-weight: 800; letter-spacing: 2px; }
+    .footer .brand-footer .fs { font-size: 9px; letter-spacing: 2px; color: #c9a96e; }
 
-    .info-card .label {
-      font-size: 10px;
-      color: #71717a;
-      font-weight: 400;
-    }
-
-    .section { margin-bottom: 28px; }
-
-    .section-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #18181b;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #e4e4e7;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11.5px;
-    }
-
-    thead { background: #18181b; color: #fff; }
-
-    thead th {
-      padding: 10px 14px;
-      font-weight: 600;
-      text-align: left;
+    .footer address {
+      font-style: normal;
       font-size: 11px;
-      letter-spacing: 0.3px;
-    }
-
-    tbody tr { border-bottom: 1px solid #f0f0f0; }
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:nth-child(even) { background: #fafafa; }
-
-    tbody td {
-      padding: 10px 14px;
-      color: #27272a;
-    }
-
-    .center { text-align: center; }
-    .muted   { color: #71717a; font-size: 11px; }
-
-    .note-box {
-      margin-top: 28px;
-      padding: 16px 20px;
-      background: #f4f4f5;
-      border-radius: 10px;
-      font-size: 11px;
-      color: #52525b;
-    }
-
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #e4e4e7;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .footer p { font-size: 10px; color: #a1a1aa; }
-
-    .footer .thank-you {
-      font-size: 13px;
-      font-weight: 600;
-      color: #18181b;
+      color: #444;
+      line-height: 1.8;
+      margin-top: 6px;
     }
 
     @media print {
       body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-      .page { padding: 20px 28px; }
+      .page { padding: 24px 40px; }
     }
   </style>
 </head>
 <body>
 <div class="page">
 
-  <!-- Header -->
-  <div class="header">
-    <div class="brand">
-      <h1>CaterPro</h1>
-      <p>Professional Catering Services</p>
-    </div>
-    <div class="doc-meta">
-      <div class="doc-type">MENU</div>
-      <div class="doc-ref">
-        <strong>Ref: ${data.quotationNumber}</strong><br/>
-        Prepared: ${fmtDate(new Date())}
-      </div>
+  <!-- Brand Header -->
+  <div class="brand-header">
+    <div class="brand-box">
+      <div class="brand-name">CaterPro</div>
+      <div class="brand-sub">Catering &amp; Banquet Hall</div>
+      <div class="brand-tag">Good Taste To Life</div>
     </div>
   </div>
 
-  <!-- Client + Event Info -->
-  <div class="info-row">
-    <div class="info-card">
-      <h4>Prepared For</h4>
-      <p>${data.clientName}</p>
-      <p class="label">Contact: ${data.clientContact}</p>
-    </div>
-    <div class="info-card">
-      <h4>Event Details</h4>
-      <p>${fmtDate(data.eventDate)} &nbsp;|&nbsp; ${data.eventTime}</p>
-      <p class="label">${data.location}</p>
-      <p class="label">${data.peopleCount} guests</p>
-    </div>
-  </div>
+  <!-- Info Table -->
+  <table class="info-table">
+    <tr>
+      <td class="lbl">NAME</td>
+      <td class="val">${data.clientName}</td>
+      <td class="lbl">NO OF GUEST</td>
+      <td class="val">${data.peopleCount}</td>
+    </tr>
+    <tr>
+      <td class="lbl">CONTACT NO</td>
+      <td class="val">${data.clientContact}</td>
+      <td class="lbl">SERVICE TYPE</td>
+      <td class="val">${data.serviceType || ''}</td>
+    </tr>
+    <tr>
+      <td class="lbl">VENUE</td>
+      <td class="val">${data.location}</td>
+      <td class="lbl">DATE &amp; DAY</td>
+      <td class="val">${fmtMenuDate(data.eventDate)}</td>
+    </tr>
+    <tr>
+      <td class="lbl">EVENT</td>
+      <td class="val">${data.occasion || ''}</td>
+      <td class="lbl">TIME</td>
+      <td class="val">${data.eventTime}</td>
+    </tr>
+  </table>
 
-  <!-- Dishes -->
-  <div class="section">
-    <h3 class="section-title">Menu Items</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Dish</th>
-          <th>Category</th>
-          <th class="center">Quantity</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.dishes.length > 0 ? dishRows : `<tr><td colspan="3" class="muted" style="text-align:center;padding:16px">No dishes added</td></tr>`}
-      </tbody>
-    </table>
-  </div>
+  <!-- Menu Sections (grouped by category) -->
+  ${data.dishes.length > 0 ? menuSections : '<p style="color:#888;text-align:center;padding:20px">No dishes added</p>'}
 
-  <!-- Services -->
-  ${serviceRows}
-
-  <!-- Note -->
-  <div class="note-box">
-    This menu is for reference purposes. Pricing details are shared separately.
-  </div>
+  <!-- Customer Benefits (Services) -->
+  ${benefitsSection}
 
   <!-- Footer -->
   <div class="footer">
-    <p class="thank-you">Thank you for choosing CaterPro!</p>
-    <p>For queries, please contact us.</p>
+    <div class="brand-footer">
+      <div class="fn">CaterPro</div>
+      <div class="fs">Catering &amp; Banquet Hall</div>
+    </div>
+    <address>
+      Ref: ${data.quotationNumber} &nbsp;|&nbsp; Prepared: ${fmtDate(new Date())}
+    </address>
   </div>
 
 </div>

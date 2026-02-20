@@ -30,6 +30,8 @@ export default function EnquiryDetailPage({ params }: { params: { id: string } }
   const [updating, setUpdating] = useState(false)
   const [noteInput, setNoteInput] = useState('')
   const [addingNote, setAddingNote] = useState(false)
+  const [occasion, setOccasion] = useState('')
+  const [serviceType, setServiceType] = useState('')
 
   useEffect(() => {
     loadEnquiry()
@@ -75,6 +77,8 @@ export default function EnquiryDetailPage({ params }: { params: { id: string } }
       eventDate: enquiry.eventDate,
       eventTime: enquiry.eventTime,
       peopleCount: enquiry.peopleCount,
+      occasion: occasion || undefined,
+      serviceType: serviceType || undefined,
       dishes: enquiry.dishes,
       services: enquiry.services,
     })
@@ -186,13 +190,29 @@ export default function EnquiryDetailPage({ params }: { params: { id: string } }
               </div>
             </div>
 
-            <button
-              onClick={handleDownloadMenu}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all"
-            >
-              <Download className="w-4 h-4" />
-              Download Menu
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                placeholder="Event (e.g. NIKKAH)"
+                value={occasion}
+                onChange={e => setOccasion(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-40"
+              />
+              <input
+                type="text"
+                placeholder="Service Type"
+                value={serviceType}
+                onChange={e => setServiceType(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-36"
+              />
+              <button
+                onClick={handleDownloadMenu}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                Download Menu
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

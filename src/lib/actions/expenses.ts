@@ -4,6 +4,15 @@ import { revalidatePath } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { ExpenseCategory } from '@prisma/client'
 
+function serializeExpense(expense: any): any {
+  if (!expense) return null
+  return {
+    ...expense,
+    amount: Number(expense.amount),
+    event: expense.event ? { ...expense.event } : undefined,
+  }
+}
+
 export async function createExpense(data: {
   eventId: string
   category: ExpenseCategory
@@ -27,7 +36,7 @@ export async function createExpense(data: {
 
     revalidatePath('/other-expenses')
     revalidatePath('/events')
-    return { success: true, data: expense }
+    return { success: true, data: serializeExpense(expense) }
   } catch (error) {
     console.error('Failed to create expense:', error)
     return { success: false, error: 'Failed to create expense' }
@@ -43,7 +52,7 @@ export async function getExpensesByEvent(eventId: string) {
       },
     })
 
-    return { success: true, data: expenses }
+    return { success: true, data: expenses.map(serializeExpense) }
   } catch (error) {
     console.error('Failed to fetch expenses:', error)
     return { success: false, error: 'Failed to fetch expenses' }
@@ -68,7 +77,7 @@ export async function getAllExpenses(category?: ExpenseCategory) {
       },
     })
 
-    return { success: true, data: expenses }
+    return { success: true, data: expenses.map(serializeExpense) }
   } catch (error) {
     console.error('Failed to fetch expenses:', error)
     return { success: false, error: 'Failed to fetch expenses' }
@@ -91,7 +100,7 @@ export async function updateExpense(
     })
 
     revalidatePath('/other-expenses')
-    return { success: true, data: expense }
+    return { success: true, data: serializeExpense(expense) }
   } catch (error) {
     console.error('Failed to update expense:', error)
     return { success: false, error: 'Failed to update expense' }

@@ -55,7 +55,27 @@ export async function getEventForInvoice(eventId: string) {
       return { success: false, error: 'Event not found' }
     }
 
-    return { success: true, data: event }
+    // Serialize all Decimal fields before returning to client
+    return {
+      success: true, data: {
+        ...event,
+        totalAmount: Number(event.totalAmount),
+        paidAmount: Number(event.paidAmount),
+        balanceAmount: Number(event.balanceAmount),
+        dishes: event.dishes.map(d => ({
+          ...d,
+          pricePerPlate: Number(d.pricePerPlate),
+          dish: {
+            ...d.dish,
+            pricePerPlate: Number(d.dish.pricePerPlate),
+            estimatedCostPerPlate: Number(d.dish.estimatedCostPerPlate),
+            sellingPricePerPlate: Number(d.dish.sellingPricePerPlate),
+          },
+        })),
+        services: event.services.map(s => ({ ...s, price: Number(s.price) })),
+        expenses: event.expenses.map(e => ({ ...e, amount: Number(e.amount) })),
+      }
+    }
   } catch (error) {
     console.error('Failed to fetch event for invoice:', error)
     return { success: false, error: 'Failed to fetch event' }
@@ -183,7 +203,7 @@ export async function updateInvoiceStatus(
     })
 
     revalidatePath('/events')
-    return { success: true, data: invoice }
+    return { success: true, data: serializeInvoice(invoice) }
   } catch (error) {
     console.error('Failed to update invoice:', error)
     return { success: false, error: 'Failed to update invoice' }

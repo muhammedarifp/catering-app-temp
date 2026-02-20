@@ -4,6 +4,38 @@ import { revalidatePath } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { EnquiryStatus } from '@prisma/client'
 
+function serializeEnquiry(enquiry: any): any {
+  if (!enquiry) return null
+  return {
+    ...enquiry,
+    totalAmount: Number(enquiry.totalAmount),
+    dishes: enquiry.dishes?.map((d: any) => ({
+      ...d,
+      pricePerPlate: Number(d.pricePerPlate),
+      dish: d.dish ? {
+        ...d.dish,
+        pricePerPlate: Number(d.dish.pricePerPlate),
+        estimatedCostPerPlate: Number(d.dish.estimatedCostPerPlate ?? 0),
+        sellingPricePerPlate: Number(d.dish.sellingPricePerPlate ?? 0),
+        ingredients: d.dish.ingredients?.map((i: any) => ({
+          ...i,
+          quantity: Number(i.quantity),
+        })),
+      } : undefined,
+    })),
+    services: enquiry.services?.map((s: any) => ({
+      ...s,
+      price: Number(s.price),
+    })),
+    convertedEvent: enquiry.convertedEvent ? {
+      ...enquiry.convertedEvent,
+      totalAmount: Number(enquiry.convertedEvent.totalAmount),
+      paidAmount: Number(enquiry.convertedEvent.paidAmount),
+      balanceAmount: Number(enquiry.convertedEvent.balanceAmount),
+    } : undefined,
+  }
+}
+
 export async function createEnquiry(data: {
   clientName: string
   clientContact: string
@@ -69,7 +101,7 @@ export async function createEnquiry(data: {
     })
 
     revalidatePath('/')
-    return { success: true, data: enquiry }
+    return { success: true, data: serializeEnquiry(enquiry) }
   } catch (error) {
     console.error('Failed to create enquiry:', error)
     return { success: false, error: 'Failed to create enquiry' }
@@ -149,11 +181,11 @@ export async function updateEnquiryStatus(enquiryId: string, status: EnquiryStat
 
       revalidatePath('/')
       revalidatePath('/events')
-      return { success: true, data: updatedEnquiry, event }
+      return { success: true, data: serializeEnquiry(updatedEnquiry), event: { id: event.id } }
     }
 
     revalidatePath('/')
-    return { success: true, data: updatedEnquiry }
+    return { success: true, data: serializeEnquiry(updatedEnquiry) }
   } catch (error) {
     console.error('Failed to update enquiry status:', error)
     return { success: false, error: 'Failed to update enquiry status' }
@@ -189,7 +221,7 @@ export async function getEnquiries(status?: EnquiryStatus) {
       },
     })
 
-    return { success: true, data: enquiries }
+    return { success: true, data: enquiries.map(serializeEnquiry) }
   } catch (error) {
     console.error('Failed to fetch enquiries:', error)
     return { success: false, error: 'Failed to fetch enquiries' }
@@ -226,7 +258,7 @@ export async function getEnquiryById(id: string) {
       return { success: false, error: 'Enquiry not found' }
     }
 
-    return { success: true, data: enquiry }
+    return { success: true, data: serializeEnquiry(enquiry) }
   } catch (error) {
     console.error('Failed to fetch enquiry:', error)
     return { success: false, error: 'Failed to fetch enquiry' }
@@ -244,7 +276,7 @@ export async function addEnquiryUpdate(enquiryId: string, description: string, u
     })
 
     revalidatePath('/')
-    return { success: true, data: update }
+    return { success: true, data: { ...update } }
   } catch (error) {
     console.error('Failed to add enquiry update:', error)
     return { success: false, error: 'Failed to add update' }
