@@ -31,351 +31,146 @@ interface InvoiceData {
 }
 
 const n = (v: DecimalLike) => Number(v)
-const fmt = (v: DecimalLike) => `₹${n(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const fmt = (v: DecimalLike) =>
+  `₹${n(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtDate = (d: Date | string) =>
   new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
-function generateInvoiceHTML(data: InvoiceData): string {
+// ── STANDARD INVOICE ──────────────────────────────────────────────────────────
+function generateStandardInvoiceHTML(data: InvoiceData): string {
   const { event } = data
-  const balance = n(data.balanceAmount)
-  const isPaid = balance <= 0
+  const isPaid = n(data.balanceAmount) <= 0
 
-  const dishRows = event.dishes.map(d => `
-    <tr>
-      <td>${d.dish?.name || '—'}</td>
-      <td class="center">${d.quantity}</td>
-      <td class="right">${fmt(d.pricePerPlate)}</td>
-      <td class="right">${fmt(d.quantity * n(d.pricePerPlate))}</td>
-    </tr>
-  `).join('')
+  const allItems = [
+    ...event.dishes.map(d => ({
+      name: d.dish?.name || '—',
+      qty: d.quantity,
+      rate: n(d.pricePerPlate),
+      amount: d.quantity * n(d.pricePerPlate),
+    })),
+    ...event.services.map(s => ({
+      name: s.serviceName + (s.description ? ` (${s.description})` : ''),
+      qty: 1,
+      rate: n(s.price),
+      amount: n(s.price),
+    })),
+  ]
 
-  const serviceRows = event.services.length > 0 ? `
-    <div class="section">
-      <h3 class="section-title">Additional Services</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Service</th>
-            <th>Description</th>
-            <th class="right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${event.services.map(s => `
-            <tr>
-              <td>${s.serviceName}</td>
-              <td class="muted">${s.description || '—'}</td>
-              <td class="right">${fmt(s.price)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-  ` : ''
+  const rows = allItems.map((r, i) => `
+    <tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
+      <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;font-size:11.5px">${r.name}</td>
+      <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:11.5px">${r.qty}</td>
+      <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:11.5px">${fmt(r.rate)}</td>
+      <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:11.5px;font-weight:500">${fmt(r.amount)}</td>
+    </tr>`).join('')
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Invoice ${data.invoiceNumber}</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      font-size: 12px;
-      color: #1a1a1a;
-      background: #fff;
-      line-height: 1.6;
-    }
-
-    .page {
-      max-width: 794px;
-      margin: 0 auto;
-      padding: 40px 48px;
-    }
-
-    /* ── Header ── */
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding-bottom: 24px;
-      border-bottom: 3px solid #18181b;
-      margin-bottom: 32px;
-    }
-
-    .brand h1 {
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      color: #18181b;
-    }
-
-    .brand p {
-      font-size: 11px;
-      color: #71717a;
-      margin-top: 2px;
-    }
-
-    .invoice-meta { text-align: right; }
-
-    .invoice-meta .invoice-number {
-      font-size: 20px;
-      font-weight: 700;
-      color: #18181b;
-    }
-
-    .invoice-meta .dates {
-      font-size: 11px;
-      color: #52525b;
-      margin-top: 6px;
-      line-height: 1.8;
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin-top: 8px;
-    }
-    .badge-paid   { background: #dcfce7; color: #15803d; }
-    .badge-unpaid { background: #fef9c3; color: #a16207; }
-
-    /* ── Info Cards ── */
-    .info-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 28px;
-    }
-
-    .info-card {
-      background: #f4f4f5;
-      border-radius: 10px;
-      padding: 16px 20px;
-    }
-
-    .info-card h4 {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: #71717a;
-      margin-bottom: 10px;
-    }
-
-    .info-card p {
-      font-size: 12px;
-      color: #18181b;
-      font-weight: 500;
-      margin-bottom: 4px;
-    }
-
-    .info-card .label {
-      font-size: 10px;
-      color: #71717a;
-      font-weight: 400;
-    }
-
-    /* ── Section ── */
-    .section { margin-bottom: 28px; }
-
-    .section-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #18181b;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #e4e4e7;
-    }
-
-    /* ── Table ── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11.5px;
-    }
-
-    thead { background: #18181b; color: #fff; }
-
-    thead th {
-      padding: 10px 14px;
-      font-weight: 600;
-      text-align: left;
-      font-size: 11px;
-      letter-spacing: 0.3px;
-    }
-
-    tbody tr { border-bottom: 1px solid #f0f0f0; }
-    tbody tr:last-child { border-bottom: none; }
-
-    tbody tr:nth-child(even) { background: #fafafa; }
-
-    tbody td {
-      padding: 10px 14px;
-      color: #27272a;
-    }
-
-    .center { text-align: center; }
-    .right   { text-align: right; }
-    .muted   { color: #71717a; font-size: 11px; }
-
-    /* ── Totals ── */
-    .totals-wrapper {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 4px;
-    }
-
-    .totals {
-      width: 280px;
-      background: #f4f4f5;
-      border-radius: 10px;
-      padding: 16px 20px;
-    }
-
-    .total-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 0;
-      font-size: 12px;
-      color: #52525b;
-    }
-
-    .total-row.divider {
-      border-top: 1px solid #e4e4e7;
-      margin-top: 6px;
-      padding-top: 10px;
-    }
-
-    .total-row.grand {
-      font-size: 14px;
-      font-weight: 800;
-      color: #18181b;
-    }
-
-    .total-row.paid   { color: #15803d; font-weight: 600; }
-    .total-row.balance-due { color: #b45309; font-weight: 700; }
-    .total-row.balance-ok  { color: #15803d; font-weight: 700; }
-
-    /* ── Footer ── */
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #e4e4e7;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .footer p { font-size: 10px; color: #a1a1aa; }
-
-    .footer .thank-you {
-      font-size: 13px;
-      font-weight: 600;
-      color: #18181b;
-    }
-
-    @media print {
-      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-      .page { padding: 20px 28px; }
-    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111827;background:#fff;line-height:1.5}
+    .wrap{max-width:760px;margin:0 auto;padding:36px 40px}
+    @media(max-width:600px){.wrap{padding:20px 16px}.two-col{display:block!important}.two-col>div{width:100%!important;margin-bottom:12px}}
+    @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.wrap{padding:20px 24px}}
   </style>
 </head>
 <body>
-<div class="page">
+<div class="wrap">
 
   <!-- Header -->
-  <div class="header">
-    <div class="brand">
-      <h1>CaterPro</h1>
-      <p>Professional Catering Services</p>
-    </div>
-    <div class="invoice-meta">
-      <div class="invoice-number">INVOICE</div>
-      <div class="dates">
-        <strong>#${data.invoiceNumber}</strong><br/>
-        Issued: ${fmtDate(data.issueDate)}<br/>
-        ${data.dueDate ? `Due: ${fmtDate(data.dueDate)}` : ''}
-      </div>
-      <span class="status-badge ${isPaid ? 'badge-paid' : 'badge-unpaid'}">
-        ${isPaid ? 'Paid' : 'Payment Pending'}
-      </span>
-    </div>
-  </div>
+  <table width="100%" style="margin-bottom:28px;border-bottom:2px solid #111827;padding-bottom:20px">
+    <tr>
+      <td>
+        <div style="font-size:20px;font-weight:900;letter-spacing:-0.5px;color:#111827">CaterPro</div>
+        <div style="font-size:10px;color:#6b7280;margin-top:2px;letter-spacing:0.5px">CATERING &amp; BANQUET SERVICES</div>
+      </td>
+      <td style="text-align:right;vertical-align:top">
+        <div style="font-size:18px;font-weight:700;color:#111827;letter-spacing:1px">TAX INVOICE</div>
+        <div style="font-size:11px;color:#374151;margin-top:4px;line-height:1.7">
+          <strong>#${data.invoiceNumber}</strong><br/>
+          Issued: ${fmtDate(data.issueDate)}<br/>
+          ${data.dueDate ? `Due: ${fmtDate(data.dueDate)}` : ''}
+        </div>
+        <div style="display:inline-block;margin-top:6px;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:0.5px;
+          ${isPaid ? 'background:#dcfce7;color:#15803d;border:1px solid #bbf7d0' : 'background:#fef3c7;color:#92400e;border:1px solid #fde68a'}">
+          ${isPaid ? '✓ PAID' : 'PAYMENT PENDING'}
+        </div>
+      </td>
+    </tr>
+  </table>
 
-  <!-- Bill To + Event Info -->
-  <div class="info-row">
-    <div class="info-card">
-      <h4>Bill To</h4>
-      <p>${event.clientName}</p>
-      <p class="label">Contact: ${event.clientContact}</p>
-    </div>
-    <div class="info-card">
-      <h4>Event Details</h4>
-      <p>${event.name}</p>
-      <p class="label">${fmtDate(event.eventDate)} &nbsp;|&nbsp; ${event.eventTime}</p>
-      <p class="label">${event.location}</p>
-      <p class="label">${event.guestCount} guests</p>
-    </div>
-  </div>
+  <!-- Bill To / Event -->
+  <table width="100%" class="two-col" style="display:table;margin-bottom:24px">
+    <tr>
+      <td width="50%" style="vertical-align:top;padding-right:16px">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:6px">Bill To</div>
+        <div style="font-size:13px;font-weight:700;color:#111827">${event.clientName}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">${event.clientContact}</div>
+      </td>
+      <td width="50%" style="vertical-align:top;padding-left:16px;border-left:1px solid #e5e7eb">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:6px">Event Details</div>
+        <div style="font-size:13px;font-weight:700;color:#111827">${event.name}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">${fmtDate(event.eventDate)} &nbsp;·&nbsp; ${event.eventTime}</div>
+        <div style="font-size:11px;color:#6b7280">${event.location}</div>
+        <div style="font-size:11px;color:#6b7280">${event.guestCount} guests</div>
+      </td>
+    </tr>
+  </table>
 
-  <!-- Dishes -->
-  <div class="section">
-    <h3 class="section-title">Dishes</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Dish</th>
-          <th class="center">Plates</th>
-          <th class="right">Rate / Plate</th>
-          <th class="right">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${event.dishes.length > 0 ? dishRows : `<tr><td colspan="4" class="muted" style="text-align:center;padding:16px">No dishes added</td></tr>`}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Services -->
-  ${serviceRows}
+  <!-- Items Table -->
+  <table width="100%" style="border-collapse:collapse;margin-bottom:20px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden">
+    <thead>
+      <tr style="background:#111827;color:#fff">
+        <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:0.3px">Item</th>
+        <th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;width:60px">Qty</th>
+        <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:600;width:110px">Rate</th>
+        <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:600;width:110px">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan="4" style="padding:20px;text-align:center;color:#9ca3af;font-size:11px">No items</td></tr>`}
+    </tbody>
+  </table>
 
   <!-- Totals -->
-  <div class="totals-wrapper">
-    <div class="totals">
-      <div class="total-row">
-        <span>Subtotal</span>
-        <span>${fmt(data.subtotal)}</span>
-      </div>
-      <div class="total-row">
-        <span>GST (18%)</span>
-        <span>${fmt(data.tax)}</span>
-      </div>
-      <div class="total-row divider grand">
-        <span>Total</span>
-        <span>${fmt(data.totalAmount)}</span>
-      </div>
-      <div class="total-row paid">
-        <span>Paid</span>
-        <span>${fmt(data.paidAmount)}</span>
-      </div>
-      <div class="total-row ${isPaid ? 'balance-ok' : 'balance-due'}">
-        <span>Balance Due</span>
-        <span>${fmt(data.balanceAmount)}</span>
-      </div>
-    </div>
-  </div>
+  <table width="100%" style="margin-bottom:32px">
+    <tr>
+      <td width="55%"></td>
+      <td width="45%">
+        <table width="100%" style="font-size:11.5px">
+          <tr>
+            <td style="padding:4px 0;color:#6b7280">Subtotal</td>
+            <td style="padding:4px 0;text-align:right;color:#374151">${fmt(data.subtotal)}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0;color:#6b7280">GST (18%)</td>
+            <td style="padding:4px 0;text-align:right;color:#374151">${fmt(data.tax)}</td>
+          </tr>
+          <tr style="border-top:2px solid #111827">
+            <td style="padding:8px 0 4px;font-size:13px;font-weight:800;color:#111827">Total</td>
+            <td style="padding:8px 0 4px;text-align:right;font-size:13px;font-weight:800;color:#111827">${fmt(data.totalAmount)}</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 0;color:#15803d;font-weight:600">Paid</td>
+            <td style="padding:3px 0;text-align:right;color:#15803d;font-weight:600">${fmt(data.paidAmount)}</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 0;font-weight:700;${isPaid ? 'color:#15803d' : 'color:#b45309'}">Balance Due</td>
+            <td style="padding:3px 0;text-align:right;font-weight:700;${isPaid ? 'color:#15803d' : 'color:#b45309'}">${fmt(data.balanceAmount)}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 
   <!-- Footer -->
-  <div class="footer">
-    <p class="thank-you">Thank you for your business!</p>
-    <p>For queries, please contact us.</p>
+  <div style="border-top:1px solid #e5e7eb;padding-top:16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;font-weight:600;color:#111827">Thank you for choosing CaterPro!</span>
+    <span style="font-size:10px;color:#9ca3af">Generated: ${fmtDate(new Date())}</span>
   </div>
 
 </div>
@@ -383,8 +178,184 @@ function generateInvoiceHTML(data: InvoiceData): string {
 </html>`
 }
 
-export function downloadInvoice(invoiceData: InvoiceData) {
-  const html = generateInvoiceHTML(invoiceData)
+// ── PRO INVOICE ───────────────────────────────────────────────────────────────
+function generateProInvoiceHTML(data: InvoiceData): string {
+  const { event } = data
+  const isPaid = n(data.balanceAmount) <= 0
+
+  const dishRows = event.dishes.map((d, i) => `
+    <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
+      <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:11.5px;color:#1e293b">${d.dish?.name || '—'}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;font-size:11.5px;color:#475569">${d.quantity}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11.5px;color:#475569">${fmt(d.pricePerPlate)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11.5px;font-weight:600;color:#1e293b">${fmt(d.quantity * n(d.pricePerPlate))}</td>
+    </tr>`).join('')
+
+  const serviceRows = event.services.map((s, i) => `
+    <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
+      <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:11.5px;color:#1e293b" colspan="2">${s.serviceName}${s.description ? `<span style="color:#94a3b8;font-size:10.5px"> — ${s.description}</span>` : ''}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0" colspan="1"></td>
+      <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:11.5px;font-weight:600;color:#1e293b">${fmt(s.price)}</td>
+    </tr>`).join('')
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Invoice ${data.invoiceNumber}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;background:#f1f5f9;color:#1e293b;line-height:1.5}
+    .wrap{max-width:760px;margin:0 auto;padding:32px 20px}
+    .card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.08)}
+    @media(max-width:600px){.wrap{padding:12px 8px}.hdr-flex{display:block!important}.hdr-flex>div{width:100%!important;text-align:left!important;margin-top:12px}}
+    @media print{body{background:#fff;print-color-adjust:exact;-webkit-print-color-adjust:exact}.wrap{padding:0}.card{box-shadow:none}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+
+  <!-- Top Banner -->
+  <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 100%);padding:28px 32px;position:relative;overflow:hidden">
+    <div style="position:absolute;right:-20px;top:-20px;width:120px;height:120px;border-radius:50%;background:rgba(245,158,11,0.12)"></div>
+    <div style="position:absolute;right:30px;top:30px;width:60px;height:60px;border-radius:50%;background:rgba(245,158,11,0.08)"></div>
+    <div class="hdr-flex" style="display:flex;justify-content:space-between;align-items:flex-start;position:relative">
+      <div>
+        <div style="font-size:24px;font-weight:900;color:#fff;letter-spacing:1px">CaterPro</div>
+        <div style="font-size:9px;letter-spacing:3px;color:#f59e0b;margin-top:3px;text-transform:uppercase">Catering &amp; Banquet Services</div>
+        <div style="font-size:8.5px;color:#94a3b8;margin-top:2px;font-style:italic">Where Every Feast Tells a Story</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;letter-spacing:2px;font-weight:600;color:#94a3b8;text-transform:uppercase">Invoice</div>
+        <div style="font-size:20px;font-weight:800;color:#fff;margin-top:2px">#${data.invoiceNumber}</div>
+        <div style="margin-top:8px;display:inline-block;padding:4px 14px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:0.5px;
+          ${isPaid ? 'background:#dcfce7;color:#15803d' : 'background:#fef3c7;color:#92400e'}">
+          ${isPaid ? '✓ FULLY PAID' : '⏳ PAYMENT PENDING'}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Amber accent bar -->
+  <div style="height:4px;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div>
+
+  <!-- Info Grid -->
+  <div style="padding:24px 32px;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+    <table width="100%">
+      <tr>
+        <td width="50%" style="vertical-align:top;padding-right:20px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:8px">Billed To</div>
+          <div style="font-size:14px;font-weight:700;color:#1e293b">${event.clientName}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px">${event.clientContact}</div>
+        </td>
+        <td width="50%" style="vertical-align:top;padding-left:20px;border-left:2px solid #e2e8f0">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:8px">Event Details</div>
+          <div style="font-size:14px;font-weight:700;color:#1e293b">${event.name}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px">${fmtDate(event.eventDate)} &nbsp;·&nbsp; ${event.eventTime}</div>
+          <div style="font-size:11px;color:#64748b">${event.location}</div>
+          <div style="font-size:11px;color:#64748b">${event.guestCount} guests</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding-top:12px;font-size:10px;color:#94a3b8">
+          Issued: <strong style="color:#475569">${fmtDate(data.issueDate)}</strong>
+          ${data.dueDate ? `&nbsp;&nbsp;Due: <strong style="color:#475569">${fmtDate(data.dueDate)}</strong>` : ''}
+        </td>
+        <td></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Items -->
+  <div style="padding:0 32px 24px">
+    ${event.dishes.length > 0 ? `
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;padding:20px 0 10px">Dishes</div>
+    <table width="100%" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+      <thead>
+        <tr style="background:#1e293b;color:#fff">
+          <th style="padding:10px 14px;text-align:left;font-size:10.5px;font-weight:600;letter-spacing:0.3px">Dish</th>
+          <th style="padding:10px 14px;text-align:center;font-size:10.5px;font-weight:600;width:60px">Plates</th>
+          <th style="padding:10px 14px;text-align:right;font-size:10.5px;font-weight:600;width:100px">Rate/Plate</th>
+          <th style="padding:10px 14px;text-align:right;font-size:10.5px;font-weight:600;width:110px">Amount</th>
+        </tr>
+      </thead>
+      <tbody>${dishRows}</tbody>
+    </table>` : ''}
+
+    ${event.services.length > 0 ? `
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;padding:20px 0 10px">Services</div>
+    <table width="100%" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+      <thead>
+        <tr style="background:#334155;color:#fff">
+          <th colspan="2" style="padding:10px 14px;text-align:left;font-size:10.5px;font-weight:600;letter-spacing:0.3px">Service</th>
+          <th style="padding:10px 14px;width:60px"></th>
+          <th style="padding:10px 14px;text-align:right;font-size:10.5px;font-weight:600;width:110px">Amount</th>
+        </tr>
+      </thead>
+      <tbody>${serviceRows}</tbody>
+    </table>` : ''}
+  </div>
+
+  <!-- Totals -->
+  <div style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e2e8f0">
+    <table width="100%">
+      <tr>
+        <td width="55%">
+          <div style="font-size:11px;color:#64748b;line-height:1.8">
+            ${isPaid
+              ? '<span style="color:#15803d;font-weight:600">✓ This invoice has been fully paid.</span>'
+              : '<span style="color:#92400e;font-weight:600">⏳ Payment is pending. Please settle the balance at earliest.</span>'}
+          </div>
+        </td>
+        <td width="45%" style="padding-left:24px">
+          <table width="100%" style="font-size:12px">
+            <tr>
+              <td style="padding:3px 0;color:#64748b">Subtotal</td>
+              <td style="padding:3px 0;text-align:right;color:#475569">${fmt(data.subtotal)}</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 0;color:#64748b">GST (18%)</td>
+              <td style="padding:3px 0;text-align:right;color:#475569">${fmt(data.tax)}</td>
+            </tr>
+            <tr>
+              <td colspan="2"><div style="border-top:2px solid #1e293b;margin:6px 0"></div></td>
+            </tr>
+            <tr>
+              <td style="padding:3px 0;font-size:14px;font-weight:800;color:#1e293b">Total</td>
+              <td style="padding:3px 0;text-align:right;font-size:14px;font-weight:800;color:#1e293b">${fmt(data.totalAmount)}</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 0;color:#15803d;font-weight:600">Paid</td>
+              <td style="padding:3px 0;text-align:right;color:#15803d;font-weight:600">${fmt(data.paidAmount)}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;font-size:13px;font-weight:700;${isPaid ? 'color:#15803d' : 'color:#b45309'}">Balance Due</td>
+              <td style="padding:4px 0;text-align:right;font-size:13px;font-weight:700;${isPaid ? 'color:#15803d' : 'color:#b45309'}">${fmt(data.balanceAmount)}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Footer Banner -->
+  <div style="background:#1e293b;padding:16px 32px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:11px;color:#94a3b8">Thank you for choosing <strong style="color:#f59e0b">CaterPro</strong></span>
+    <span style="font-size:10px;color:#64748b">Ref: ${data.invoiceNumber} &nbsp;·&nbsp; ${fmtDate(new Date())}</span>
+  </div>
+
+</div>
+</div>
+</body>
+</html>`
+}
+
+export function downloadInvoice(invoiceData: InvoiceData, type: 'standard' | 'pro' = 'standard') {
+  const html = type === 'pro'
+    ? generateProInvoiceHTML(invoiceData)
+    : generateStandardInvoiceHTML(invoiceData)
   const printWindow = window.open('', '_blank')
   if (!printWindow) {
     alert('Please allow popups to download the invoice.')
