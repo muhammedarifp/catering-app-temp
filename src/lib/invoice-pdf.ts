@@ -378,236 +378,132 @@ function generateMenuHTML(data: MenuData): string {
   }
 
   const menuSections = Array.from(groups.entries()).map(([category, items]) => `
-    <div class="menu-section">
-      <div class="course-title">${category}</div>
-      ${items.map(item => `<div class="menu-item">&#10148;&nbsp;${item}</div>`).join('')}
+    <div style="margin-bottom:22px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:3px;height:18px;background:#f59e0b;border-radius:2px;flex-shrink:0"></div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#1e293b">${category}</div>
+        <div style="flex:1;height:1px;background:#e2e8f0"></div>
+      </div>
+      <div style="padding-left:13px">
+        ${items.map(item => `
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f8fafc">
+            <div style="width:5px;height:5px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+            <div style="font-size:13px;color:#1a1a1a;font-weight:500">${item}</div>
+          </div>`).join('')}
+      </div>
     </div>
   `).join('')
 
   const benefitsSection = data.services.length > 0 ? `
-    <div class="menu-section">
-      <div class="course-title">CUSTOMER BENEFITS</div>
-      <ul class="benefits-list">
-        ${data.services.map(s => `<li>${s.serviceName}${s.description ? ` <span class="desc">(${s.description})</span>` : ''}</li>`).join('')}
-      </ul>
+    <div style="background:#f8fafc;border-radius:10px;padding:18px 20px;margin-top:24px;border-left:3px solid #1e293b">
+      <div style="font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#1e293b;margin-bottom:12px">Customer Benefits</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${data.services.map(s => `
+          <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e2e8f0;border-radius:100px;padding:5px 14px">
+            <span style="color:#f59e0b;font-size:12px;font-weight:800">✓</span>
+            <span style="font-size:12px;color:#374151;font-weight:500">${s.serviceName}${s.description ? ` <span style="color:#94a3b8;font-size:11px">(${s.description})</span>` : ''}</span>
+          </div>`).join('')}
+      </div>
     </div>
   ` : ''
+
+  const infoItems = [
+    { label: 'Client', value: data.clientName },
+    { label: 'Contact', value: data.clientContact },
+    { label: 'Venue', value: data.location },
+    { label: 'Occasion', value: data.occasion || '—' },
+    { label: 'Guests', value: String(data.peopleCount) },
+    { label: 'Service', value: data.serviceType || '—' },
+    { label: 'Date', value: fmtMenuDate(data.eventDate) },
+    { label: 'Time', value: data.eventTime },
+  ]
+
+  const infoCell = (item: { label: string; value: string }) => `
+    <div style="padding:10px 0;border-bottom:1px solid #e2e8f0">
+      <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8;margin-bottom:3px">${item.label}</div>
+      <div style="font-size:13px;font-weight:600;color:#0f172a">${item.value}</div>
+    </div>
+  `
+  const infoLeft = infoItems.slice(0, 4).map(infoCell).join('')
+  const infoRight = infoItems.slice(4).map(infoCell).join('')
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>${data.quotationNumber} - ${data.clientName} Menu</title>
+  <meta charset="UTF-8"/>
+  <title>${data.quotationNumber} — ${data.clientName}</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 13px;
-      color: #1a1a1a;
-      background: #fff;
-      line-height: 1.7;
-    }
-
-    .page {
-      max-width: 794px;
-      margin: 0 auto;
-      padding: 40px 56px;
-    }
-
-    /* ── Logo / Brand ── */
-    .brand-header {
-      text-align: center;
-      margin-bottom: 28px;
-    }
-
-    .brand-box {
-      display: inline-block;
-      background: #1e293b;
-      color: #fff;
-      padding: 18px 44px;
-      border-radius: 8px;
-      border-bottom: 4px solid #f59e0b;
-    }
-
-    .brand-box .brand-name {
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-    }
-
-    .brand-box .brand-sub {
-      font-size: 10px;
-      letter-spacing: 4px;
-      color: #f59e0b;
-      margin-top: 3px;
-      text-transform: uppercase;
-    }
-
-    .brand-box .brand-tag {
-      font-size: 9px;
-      letter-spacing: 1.5px;
-      color: #94a3b8;
-      margin-top: 2px;
-      font-style: italic;
-      text-transform: none;
-    }
-
-    /* ── Info Table ── */
-    .info-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 28px;
-      font-size: 12px;
-    }
-
-    .info-table td {
-      border: 1px solid #555;
-      padding: 9px 14px;
-    }
-
-    .info-table .lbl {
-      font-weight: 800;
-      text-transform: uppercase;
-      white-space: nowrap;
-      width: 120px;
-    }
-
-    .info-table .val {
-      font-weight: 500;
-    }
-
-    /* ── Course Sections ── */
-    .menu-section {
-      margin-bottom: 14px;
-    }
-
-    .course-title {
-      font-size: 14px;
-      font-weight: 900;
-      text-decoration: underline;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-      margin-top: 4px;
-      letter-spacing: 0.5px;
-    }
-
-    .menu-item {
-      font-size: 13px;
-      padding: 1px 0 1px 24px;
-      color: #1a1a1a;
-    }
-
-    /* ── Customer Benefits ── */
-    .benefits-list {
-      list-style: disc;
-      padding-left: 40px;
-    }
-
-    .benefits-list li {
-      padding: 1px 0;
-      font-size: 13px;
-    }
-
-    .desc {
-      color: #555;
-      font-size: 11px;
-    }
-
-    /* ── Footer ── */
-    .footer {
-      margin-top: 40px;
-      border-top: 2px dashed #999;
-      padding-top: 20px;
-      text-align: center;
-    }
-
-    .footer .brand-footer {
-      display: inline-block;
-      background: #1e293b;
-      color: #fff;
-      padding: 10px 24px;
-      border-radius: 6px;
-      border-bottom: 3px solid #f59e0b;
-      margin-bottom: 10px;
-    }
-
-    .footer .brand-footer .fn { font-size: 14px; font-weight: 800; letter-spacing: 2px; }
-    .footer .brand-footer .fs { font-size: 9px; letter-spacing: 2px; color: #f59e0b; }
-
-    .footer address {
-      font-style: normal;
-      font-size: 11px;
-      color: #444;
-      line-height: 1.8;
-      margin-top: 6px;
-    }
-
-    @media print {
-      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-      .page { padding: 24px 40px; }
-    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    html{height:100%}
+    body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#fff;color:#1a1a1a;-webkit-print-color-adjust:exact;print-color-adjust:exact;display:flex;flex-direction:column;min-height:100vh}
+    .main-content{flex:1}
+    .footer-bar{background:#0f172a;padding:16px 56px;display:flex;justify-content:space-between;align-items:center}
+    @media print{body{min-height:100vh}}
   </style>
 </head>
 <body>
-<div class="page">
 
-  <!-- Brand Header -->
-  <div class="brand-header">
-    <div class="brand-box">
-      <div class="brand-name">CaterPro</div>
-      <div class="brand-sub">Catering &amp; Banquet Services</div>
-      <div class="brand-tag">Where Every Feast Tells a Story</div>
+  <!-- Full-width dark header -->
+  <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 70%,#334155 100%);padding:36px 56px;text-align:center;position:relative;overflow:hidden">
+    <div style="position:absolute;left:-40px;top:-40px;width:200px;height:200px;border-radius:50%;background:rgba(245,158,11,0.06)"></div>
+    <div style="position:absolute;right:-20px;bottom:-30px;width:140px;height:140px;border-radius:50%;background:rgba(245,158,11,0.05)"></div>
+    <div style="position:relative">
+      <div style="font-size:32px;font-weight:900;color:#fff;letter-spacing:4px;text-transform:uppercase;line-height:1">CaterPro</div>
+      <div style="font-size:9px;letter-spacing:5px;color:#f59e0b;margin-top:6px;text-transform:uppercase;font-weight:700">Catering &amp; Banquet Services</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px;font-style:italic;letter-spacing:1px">Where Every Feast Tells a Story</div>
+      <div style="margin-top:10px;display:inline-block;padding:4px 18px;border-bottom:1px solid rgba(245,158,11,0.4);">
+        <span style="font-size:9px;letter-spacing:3px;color:#f59e0b;text-transform:uppercase;font-weight:700">Quotation Menu</span>
+        <span style="font-size:9px;margin-left:8px;color:#fff">#${data.quotationNumber}</span>
+      </div>
     </div>
   </div>
 
-  <!-- Info Table -->
-  <table class="info-table">
-    <tr>
-      <td class="lbl">NAME</td>
-      <td class="val">${data.clientName}</td>
-      <td class="lbl">NO OF GUEST</td>
-      <td class="val">${data.peopleCount}</td>
-    </tr>
-    <tr>
-      <td class="lbl">CONTACT NO</td>
-      <td class="val">${data.clientContact}</td>
-      <td class="lbl">SERVICE TYPE</td>
-      <td class="val">${data.serviceType || '—'}</td>
-    </tr>
-    <tr>
-      <td class="lbl">VENUE</td>
-      <td class="val">${data.location}</td>
-      <td class="lbl">DATE &amp; DAY</td>
-      <td class="val">${fmtMenuDate(data.eventDate)}</td>
-    </tr>
-    <tr>
-      <td class="lbl">EVENT</td>
-      <td class="val">${data.occasion || '—'}</td>
-      <td class="lbl">TIME</td>
-      <td class="val">${data.eventTime}</td>
-    </tr>
-  </table>
+  <!-- Amber accent bar -->
+  <div style="height:3px;background:linear-gradient(90deg,#f59e0b,#fbbf24,#fde68a)"></div>
 
-  <!-- Menu Sections (grouped by category) -->
-  ${data.dishes.length > 0 ? menuSections : '<p style="color:#888;text-align:center;padding:20px">No dishes added</p>'}
+  <div class="main-content">
 
-  <!-- Customer Benefits (Services) -->
-  ${benefitsSection}
+    <!-- Client info grid (2 columns, 4 rows) -->
+    <div style="padding:20px 56px 0;background:#fff">
+      <div style="display:flex;margin-bottom:28px">
+        <div style="flex:1;padding-right:32px">
+          ${infoLeft}
+        </div>
+        <div style="width:1px;background:#e2e8f0"></div>
+        <div style="flex:1;padding-left:32px">
+          ${infoRight}
+        </div>
+      </div>
+    </div>
+
+    <!-- Menu content -->
+    <div style="padding:0 56px 40px">
+
+      <!-- Section heading -->
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="display:inline-flex;align-items:center;gap:12px">
+          <div style="width:40px;height:1px;background:#e2e8f0"></div>
+          <span style="font-size:9px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#94a3b8">Menu</span>
+          <div style="width:40px;height:1px;background:#e2e8f0"></div>
+        </div>
+      </div>
+
+      <!-- Dish categories -->
+      ${data.dishes.length > 0 ? menuSections : '<p style="color:#94a3b8;text-align:center;padding:24px 0;font-size:12px">No dishes added</p>'}
+
+      <!-- Customer Benefits -->
+      ${benefitsSection}
+
+    </div>
+
+  </div>
 
   <!-- Footer -->
-  <div class="footer">
-    <div class="brand-footer">
-      <div class="fn">CaterPro</div>
-      <div class="fs">Catering &amp; Banquet Services</div>
-    </div>
-    <address>
-      Ref: ${data.quotationNumber} &nbsp;|&nbsp; Prepared: ${fmtDate(new Date())}
-    </address>
+  <div style="border-top:1px solid #e5e7eb;padding-top:18px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12.5px;font-weight:700;color:#111827">Thank you for choosing CaterPro!</span>
+    <span style="font-size:10px;color:#9ca3af">${fmtDate(new Date())}</span>
   </div>
 
-</div>
 </body>
 </html>`
 }
