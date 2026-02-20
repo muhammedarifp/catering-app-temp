@@ -33,6 +33,8 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
     location: '',
     eventDate: '',
     eventTime: '',
+    occasion: '',
+    serviceType: '',
   })
 
   const [selectedDishes, setSelectedDishes] = useState<DishItem[]>([])
@@ -106,6 +108,8 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
         location: formData.location,
         eventDate: new Date(formData.eventDate),
         eventTime: formData.eventTime,
+        occasion: formData.occasion || undefined,
+        serviceType: formData.serviceType || undefined,
         dishes: selectedDishes.map(d => ({
           dishId: d.dishId,
           quantity: d.quantity,
@@ -128,6 +132,8 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
           location: '',
           eventDate: '',
           eventTime: '',
+          occasion: '',
+          serviceType: '',
         })
         setSelectedDishes([])
         setServices([])
@@ -251,6 +257,30 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
                     value={formData.eventTime}
                     onChange={e => setFormData({ ...formData, eventTime: e.target.value })}
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Occasion <span className="text-slate-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.occasion}
+                    onChange={e => setFormData({ ...formData, occasion: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                    placeholder="e.g. NIKKAH, WEDDING, BIRTHDAY"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Service Type <span className="text-slate-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.serviceType}
+                    onChange={e => setFormData({ ...formData, serviceType: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                    placeholder="e.g. BOX COUNTER, BUFFET"
                   />
                 </div>
               </div>

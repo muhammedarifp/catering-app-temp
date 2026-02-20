@@ -36,6 +36,23 @@ function serializeEnquiry(enquiry: any): any {
   }
 }
 
+export async function updateEnquiryDetails(
+  id: string,
+  data: { occasion?: string; serviceType?: string }
+) {
+  try {
+    const enquiry = await prisma.enquiry.update({
+      where: { id },
+      data,
+    })
+    revalidatePath('/enquiries')
+    return { success: true, data: serializeEnquiry(enquiry) }
+  } catch (error) {
+    console.error('Failed to update enquiry details:', error)
+    return { success: false, error: 'Failed to update enquiry details' }
+  }
+}
+
 export async function createEnquiry(data: {
   clientName: string
   clientContact: string
@@ -43,6 +60,8 @@ export async function createEnquiry(data: {
   location: string
   eventDate: Date
   eventTime: string
+  occasion?: string
+  serviceType?: string
   dishes: Array<{ dishId: string; quantity: number; pricePerPlate: number }>
   services: Array<{ serviceName: string; description?: string; price: number }>
   createdById: string
@@ -65,6 +84,8 @@ export async function createEnquiry(data: {
         location: data.location,
         eventDate: data.eventDate,
         eventTime: data.eventTime,
+        occasion: data.occasion,
+        serviceType: data.serviceType,
         quotationNumber,
         totalAmount,
         createdById: data.createdById,

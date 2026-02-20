@@ -18,7 +18,7 @@ import {
   CalendarDays,
 } from 'lucide-react'
 import PageLayout from '@/components/PageLayout'
-import { getEnquiryById, updateEnquiryStatus, addEnquiryUpdate } from '@/lib/actions/enquiries'
+import { getEnquiryById, updateEnquiryStatus, addEnquiryUpdate, updateEnquiryDetails } from '@/lib/actions/enquiries'
 import { useAuth } from '@/contexts/AuthContext'
 import { downloadMenu } from '@/lib/invoice-pdf'
 
@@ -43,6 +43,8 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
     const result = await getEnquiryById(id)
     if (result.success && result.data) {
       setEnquiry(result.data)
+      setOccasion(result.data.occasion || '')
+      setServiceType(result.data.serviceType || '')
     }
     setLoading(false)
   }
@@ -194,16 +196,22 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center gap-2 flex-wrap">
               <input
                 type="text"
-                placeholder="Event (e.g. NIKKAH)"
+                placeholder="Occasion (e.g. NIKKAH)"
                 value={occasion}
                 onChange={e => setOccasion(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-40"
+                onBlur={async () => {
+                  await updateEnquiryDetails(id, { occasion: occasion || undefined })
+                }}
+                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-44"
               />
               <input
                 type="text"
                 placeholder="Service Type"
                 value={serviceType}
                 onChange={e => setServiceType(e.target.value)}
+                onBlur={async () => {
+                  await updateEnquiryDetails(id, { serviceType: serviceType || undefined })
+                }}
                 className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-36"
               />
               <button

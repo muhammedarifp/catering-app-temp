@@ -460,7 +460,7 @@ function generateMenuHTML(data: MenuData): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Menu - ${data.quotationNumber}</title>
+  <title>${data.quotationNumber} - ${data.clientName} Menu</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -486,32 +486,35 @@ function generateMenuHTML(data: MenuData): string {
 
     .brand-box {
       display: inline-block;
-      background: #1a3a3a;
+      background: #1e293b;
       color: #fff;
-      padding: 18px 36px;
-      border-radius: 6px;
+      padding: 18px 44px;
+      border-radius: 8px;
+      border-bottom: 4px solid #f59e0b;
     }
 
     .brand-box .brand-name {
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 900;
-      letter-spacing: 2px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
     }
 
     .brand-box .brand-sub {
       font-size: 10px;
-      letter-spacing: 3px;
-      color: #c9a96e;
-      margin-top: 2px;
+      letter-spacing: 4px;
+      color: #f59e0b;
+      margin-top: 3px;
       text-transform: uppercase;
     }
 
     .brand-box .brand-tag {
       font-size: 9px;
-      letter-spacing: 2px;
-      color: #aaa;
-      margin-top: 1px;
-      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+      margin-top: 2px;
+      font-style: italic;
+      text-transform: none;
     }
 
     /* ── Info Table ── */
@@ -585,15 +588,16 @@ function generateMenuHTML(data: MenuData): string {
 
     .footer .brand-footer {
       display: inline-block;
-      background: #1a3a3a;
+      background: #1e293b;
       color: #fff;
       padding: 10px 24px;
-      border-radius: 4px;
+      border-radius: 6px;
+      border-bottom: 3px solid #f59e0b;
       margin-bottom: 10px;
     }
 
     .footer .brand-footer .fn { font-size: 14px; font-weight: 800; letter-spacing: 2px; }
-    .footer .brand-footer .fs { font-size: 9px; letter-spacing: 2px; color: #c9a96e; }
+    .footer .brand-footer .fs { font-size: 9px; letter-spacing: 2px; color: #f59e0b; }
 
     .footer address {
       font-style: normal;
@@ -616,8 +620,8 @@ function generateMenuHTML(data: MenuData): string {
   <div class="brand-header">
     <div class="brand-box">
       <div class="brand-name">CaterPro</div>
-      <div class="brand-sub">Catering &amp; Banquet Hall</div>
-      <div class="brand-tag">Good Taste To Life</div>
+      <div class="brand-sub">Catering &amp; Banquet Services</div>
+      <div class="brand-tag">Where Every Feast Tells a Story</div>
     </div>
   </div>
 
@@ -633,7 +637,7 @@ function generateMenuHTML(data: MenuData): string {
       <td class="lbl">CONTACT NO</td>
       <td class="val">${data.clientContact}</td>
       <td class="lbl">SERVICE TYPE</td>
-      <td class="val">${data.serviceType || ''}</td>
+      <td class="val">${data.serviceType || '—'}</td>
     </tr>
     <tr>
       <td class="lbl">VENUE</td>
@@ -643,7 +647,7 @@ function generateMenuHTML(data: MenuData): string {
     </tr>
     <tr>
       <td class="lbl">EVENT</td>
-      <td class="val">${data.occasion || ''}</td>
+      <td class="val">${data.occasion || '—'}</td>
       <td class="lbl">TIME</td>
       <td class="val">${data.eventTime}</td>
     </tr>
@@ -659,7 +663,7 @@ function generateMenuHTML(data: MenuData): string {
   <div class="footer">
     <div class="brand-footer">
       <div class="fn">CaterPro</div>
-      <div class="fs">Catering &amp; Banquet Hall</div>
+      <div class="fs">Catering &amp; Banquet Services</div>
     </div>
     <address>
       Ref: ${data.quotationNumber} &nbsp;|&nbsp; Prepared: ${fmtDate(new Date())}

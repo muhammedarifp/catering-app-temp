@@ -60,6 +60,8 @@ model Enquiry {
   location      String
   eventDate     DateTime
   eventTime     String
+  occasion      String?   // e.g. "NIKKAH", "WEDDING", "BIRTHDAY"
+  serviceType   String?   // e.g. "BOX COUNTER", "BUFFET"
 
   // Quotation Details
   quotationNumber String     @unique
