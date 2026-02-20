@@ -397,3 +397,304 @@ export function downloadInvoice(invoiceData: InvoiceData) {
     printWindow.print()
   }
 }
+
+// ── Menu (Quotation Menu) ─────────────────────────────────────────────────────
+
+interface MenuData {
+  quotationNumber: string
+  clientName: string
+  clientContact: string
+  location: string
+  eventDate: Date | string
+  eventTime: string
+  peopleCount: number
+  dishes: Array<{
+    quantity: number
+    pricePerPlate: DecimalLike
+    dish: { name: string; description?: string | null; category?: string }
+  }>
+  services: Array<{
+    serviceName: string
+    description?: string | null
+  }>
+}
+
+function generateMenuHTML(data: MenuData): string {
+  const dishRows = data.dishes.map(d => `
+    <tr>
+      <td>${d.dish?.name || '—'}</td>
+      <td class="muted">${d.dish?.category || ''}</td>
+      <td class="center">${d.quantity} plates</td>
+    </tr>
+  `).join('')
+
+  const serviceRows = data.services.length > 0 ? `
+    <div class="section">
+      <h3 class="section-title">Additional Services</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.services.map(s => `
+            <tr>
+              <td>${s.serviceName}</td>
+              <td class="muted">${s.description || '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : ''
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Menu - ${data.quotationNumber}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 12px;
+      color: #1a1a1a;
+      background: #fff;
+      line-height: 1.6;
+    }
+
+    .page {
+      max-width: 794px;
+      margin: 0 auto;
+      padding: 40px 48px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 24px;
+      border-bottom: 3px solid #18181b;
+      margin-bottom: 32px;
+    }
+
+    .brand h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #18181b;
+    }
+
+    .brand p {
+      font-size: 11px;
+      color: #71717a;
+      margin-top: 2px;
+    }
+
+    .doc-meta { text-align: right; }
+
+    .doc-meta .doc-type {
+      font-size: 20px;
+      font-weight: 700;
+      color: #18181b;
+    }
+
+    .doc-meta .doc-ref {
+      font-size: 11px;
+      color: #52525b;
+      margin-top: 6px;
+      line-height: 1.8;
+    }
+
+    .info-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .info-card {
+      background: #f4f4f5;
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+
+    .info-card h4 {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #71717a;
+      margin-bottom: 10px;
+    }
+
+    .info-card p {
+      font-size: 12px;
+      color: #18181b;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .info-card .label {
+      font-size: 10px;
+      color: #71717a;
+      font-weight: 400;
+    }
+
+    .section { margin-bottom: 28px; }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #18181b;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e4e4e7;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+
+    thead { background: #18181b; color: #fff; }
+
+    thead th {
+      padding: 10px 14px;
+      font-weight: 600;
+      text-align: left;
+      font-size: 11px;
+      letter-spacing: 0.3px;
+    }
+
+    tbody tr { border-bottom: 1px solid #f0f0f0; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+
+    tbody td {
+      padding: 10px 14px;
+      color: #27272a;
+    }
+
+    .center { text-align: center; }
+    .muted   { color: #71717a; font-size: 11px; }
+
+    .note-box {
+      margin-top: 28px;
+      padding: 16px 20px;
+      background: #f4f4f5;
+      border-radius: 10px;
+      font-size: 11px;
+      color: #52525b;
+    }
+
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e4e4e7;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer p { font-size: 10px; color: #a1a1aa; }
+
+    .footer .thank-you {
+      font-size: 13px;
+      font-weight: 600;
+      color: #18181b;
+    }
+
+    @media print {
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .page { padding: 20px 28px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <h1>CaterPro</h1>
+      <p>Professional Catering Services</p>
+    </div>
+    <div class="doc-meta">
+      <div class="doc-type">MENU</div>
+      <div class="doc-ref">
+        <strong>Ref: ${data.quotationNumber}</strong><br/>
+        Prepared: ${fmtDate(new Date())}
+      </div>
+    </div>
+  </div>
+
+  <!-- Client + Event Info -->
+  <div class="info-row">
+    <div class="info-card">
+      <h4>Prepared For</h4>
+      <p>${data.clientName}</p>
+      <p class="label">Contact: ${data.clientContact}</p>
+    </div>
+    <div class="info-card">
+      <h4>Event Details</h4>
+      <p>${fmtDate(data.eventDate)} &nbsp;|&nbsp; ${data.eventTime}</p>
+      <p class="label">${data.location}</p>
+      <p class="label">${data.peopleCount} guests</p>
+    </div>
+  </div>
+
+  <!-- Dishes -->
+  <div class="section">
+    <h3 class="section-title">Menu Items</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Dish</th>
+          <th>Category</th>
+          <th class="center">Quantity</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.dishes.length > 0 ? dishRows : `<tr><td colspan="3" class="muted" style="text-align:center;padding:16px">No dishes added</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Services -->
+  ${serviceRows}
+
+  <!-- Note -->
+  <div class="note-box">
+    This menu is for reference purposes. Pricing details are shared separately.
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p class="thank-you">Thank you for choosing CaterPro!</p>
+    <p>For queries, please contact us.</p>
+  </div>
+
+</div>
+</body>
+</html>`
+}
+
+export function downloadMenu(menuData: MenuData) {
+  const html = generateMenuHTML(menuData)
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    alert('Please allow popups to download the menu.')
+    return
+  }
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.onload = () => {
+    printWindow.focus()
+    printWindow.print()
+  }
+}

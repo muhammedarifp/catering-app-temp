@@ -21,6 +21,7 @@ import { useMemo } from 'react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Home', href: '/' },
+  { icon: FileText, label: 'Enquiries', href: '/enquiries' },
   { icon: CalendarDays, label: 'Events', href: '/events' },
   { icon: ChefHat, label: 'Dishes', href: '/dishes' },
   { icon: Wallet, label: 'Other Expenses', href: '/other-expenses' },

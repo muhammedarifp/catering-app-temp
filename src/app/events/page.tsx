@@ -34,6 +34,13 @@ export default function EventsPage() {
   const [showGroceryModal, setShowGroceryModal] = useState(false)
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
   const [groceryEvents, setGroceryEvents] = useState<any[]>([])
+  const [groceryDate, setGroceryDate] = useState(() => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    return tomorrow.toISOString().split('T')[0]
+  })
+  const [groceryLoading, setGroceryLoading] = useState(false)
+  const [manualMode, setManualMode] = useState(false)
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
 
   // TODO: Replace with actual user ID from auth
   const userId = 'temp-user-id'
@@ -57,11 +64,56 @@ export default function EventsPage() {
   }
 
   const handleOpenGroceryList = async () => {
-    const result = await getEventsForGroceryPurchase()
+    setManualMode(false)
+    setSelectedEventIds(new Set())
+    setGroceryLoading(true)
+    const targetDate = new Date(groceryDate + 'T00:00:00')
+    const result = await getEventsForGroceryPurchase(targetDate)
     if (result.success && result.data) {
       setGroceryEvents(result.data)
-      setShowGroceryModal(true)
     }
+    setGroceryLoading(false)
+    setShowGroceryModal(true)
+  }
+
+  const handleGroceryDateChange = async (date: string) => {
+    setGroceryDate(date)
+    setManualMode(false)
+    setSelectedEventIds(new Set())
+    setGroceryLoading(true)
+    const targetDate = new Date(date + 'T00:00:00')
+    const result = await getEventsForGroceryPurchase(targetDate)
+    if (result.success && result.data) {
+      setGroceryEvents(result.data)
+    }
+    setGroceryLoading(false)
+  }
+
+  const handleEnableManualMode = () => {
+    setManualMode(true)
+    // Pre-select all upcoming/in-progress events
+    const ids = new Set(
+      events
+        .filter(e => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS')
+        .map(e => e.id)
+    )
+    setSelectedEventIds(ids)
+  }
+
+  const toggleEventSelection = (id: string) => {
+    setSelectedEventIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const getGroceryEventsToDownload = () => {
+    if (manualMode) {
+      return events.filter(e => selectedEventIds.has(e.id))
+    }
+    return groceryEvents
   }
 
   const handleBulkUpload = async (data: any[]) => {
@@ -361,57 +413,133 @@ export default function EventsPage() {
       {showGroceryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-8 py-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Grocery Purchase List</h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Auto-selected: Tomorrow's events ({groceryEvents.length} events)
-                </p>
+            <div className="px-8 py-6 border-b border-slate-200 flex items-start justify-between bg-slate-50 gap-4">
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-slate-900">Grocery List</h2>
+                <div className="flex items-center gap-3 mt-3 flex-wrap">
+                  <label className="text-sm font-medium text-slate-600 whitespace-nowrap">
+                    Select Date:
+                  </label>
+                  <input
+                    type="date"
+                    value={groceryDate}
+                    onChange={e => handleGroceryDateChange(e.target.value)}
+                    className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                  />
+                  {!manualMode && (
+                    <button
+                      onClick={handleEnableManualMode}
+                      className="px-3 py-1.5 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-100 transition-colors whitespace-nowrap"
+                    >
+                      Select Events Manually
+                    </button>
+                  )}
+                  {manualMode && (
+                    <span className="text-sm text-indigo-600 font-medium">
+                      Manual mode — {selectedEventIds.size} event(s) selected
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => setShowGroceryModal(false)}
-                className="p-2 hover:bg-slate-200 rounded-full transition-colors text-2xl leading-none"
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors text-2xl leading-none flex-shrink-0"
               >
                 ×
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8">
-              {groceryEvents.length > 0 ? (
+              {groceryLoading ? (
+                <div className="text-center py-12 text-slate-400">Loading events...</div>
+              ) : manualMode ? (
+                /* Manual event selection */
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-500 mb-4">
+                    Select the events you want to include in the grocery list:
+                  </p>
+                  {events.filter(e => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS').length > 0 ? (
+                    events
+                      .filter(e => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS')
+                      .map(event => (
+                        <label
+                          key={event.id}
+                          className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 cursor-pointer hover:border-slate-300 transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedEventIds.has(event.id)}
+                            onChange={() => toggleEventSelection(event.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                          />
+                          <div className="flex-1">
+                            <p className="font-semibold text-slate-900">{event.name}</p>
+                            <p className="text-sm text-slate-500">
+                              {new Date(event.eventDate).toLocaleDateString('en-IN')} • {event.guestCount} guests • {event.location}
+                            </p>
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-lg font-medium ${getStatusColor(event.status)}`}>
+                            {event.status}
+                          </span>
+                        </label>
+                      ))
+                  ) : (
+                    <div className="text-center py-8 text-slate-400">
+                      <p>No upcoming events found.</p>
+                    </div>
+                  )}
+
+                  {selectedEventIds.size > 0 && (
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                      <button
+                        onClick={() => downloadGroceryList(getGroceryEventsToDownload())}
+                        className="px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download Grocery List ({selectedEventIds.size} events)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : groceryEvents.length > 0 ? (
                 <div className="space-y-6">
                   {groceryEvents.map((event) => (
                     <div
                       key={event.id}
                       className="p-5 bg-slate-50 rounded-2xl border border-slate-200"
                     >
-                      <h3 className="font-bold text-slate-900 mb-3">{event.name}</h3>
+                      <h3 className="font-bold text-slate-900 mb-1">{event.name}</h3>
+                      <p className="text-sm text-slate-500 mb-3">
+                        {new Date(event.eventDate).toLocaleDateString('en-IN')} • {event.guestCount} guests
+                      </p>
                       <div className="space-y-2">
                         {event.dishes && event.dishes.map((dish: any) => (
-                          <div key={dish.id} className="flex items-center justify-between">
+                          <div key={dish.id} className="flex items-center justify-between py-1">
                             <div>
                               <p className="font-medium text-slate-900">{dish.dish.name}</p>
                               <p className="text-sm text-slate-500">
-                                Qty: {dish.quantity} plates
+                                {dish.quantity} plates
                               </p>
                             </div>
-                            {dish.dish.ingredients && dish.dish.ingredients.length > 0 && (
-                              <div className="text-right text-sm text-slate-600">
-                                {dish.dish.ingredients.length} ingredients
-                              </div>
-                            )}
+                            <div className="text-right text-sm text-slate-600">
+                              {dish.dish.ingredients && dish.dish.ingredients.length > 0
+                                ? `${dish.dish.ingredients.length} ingredients`
+                                : <span className="text-amber-500">No ingredients set</span>
+                              }
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   ))}
 
-                  <div className="flex items-center justify-end gap-3 pt-4">
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
                     <button
                       onClick={() => downloadGroceryList(groceryEvents)}
                       className="px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium flex items-center gap-2"
                     >
                       <Download className="w-4 h-4" />
-                      Download Excel
+                      Download Excel ({groceryEvents.length} events)
                     </button>
                   </div>
                 </div>
@@ -419,9 +547,15 @@ export default function EventsPage() {
                 <div className="text-center py-12 text-slate-400">
                   <ShoppingCart className="w-16 h-16 mx-auto mb-4 opacity-50" />
                   <p className="text-lg font-semibold text-slate-900 mb-2">
-                    No events for tomorrow
+                    No events on {new Date(groceryDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </p>
-                  <p className="text-sm">Select events manually to generate a grocery list.</p>
+                  <p className="text-sm mb-6">Try a different date or select events manually.</p>
+                  <button
+                    onClick={handleEnableManualMode}
+                    className="px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium"
+                  >
+                    Select Events Manually
+                  </button>
                 </div>
               )}
             </div>
