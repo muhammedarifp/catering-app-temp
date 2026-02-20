@@ -44,8 +44,8 @@ async function main() {
 
   const admin = await prisma.user.create({
     data: {
-      email: 'admin@caterpro.com',
-      name: 'Afsal (Admin)',
+      email: 'admin@example.com',
+      name: 'Super Admin',
       password: hashedPassword,
       role: 'SUPER_ADMIN',
       isActive: true,
@@ -733,8 +733,6 @@ async function main() {
   }
 
   // ── Enquiries ────────────────────────────────────────────────────────────────
-  const enquiryCount = await prisma.enquiry.count()
-
   const enquiries = [
     // PENDING
     {
@@ -909,7 +907,7 @@ async function main() {
 
   console.log('\n🎉 Seeding completed!\n')
   console.log('─────────────────────────────────────')
-  console.log('  Login: admin@caterpro.com')
+  console.log('  Login: admin@example.com')
   console.log('  Password: admin123')
   console.log('─────────────────────────────────────\n')
 }
