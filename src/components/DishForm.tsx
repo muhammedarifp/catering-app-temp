@@ -4,11 +4,16 @@ import { useState } from 'react';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createDish, updateDish } from '@/lib/actions/dishes';
+import { addIngredient } from '@/lib/actions/ingredients';
+import { api, useGetIngredientsQuery } from '@/store/api';
+import { useDispatch } from 'react-redux';
+import { calculateIngredientCost, getAvailableUnitsForGlobal } from '@/lib/utils/units';
 
 interface Ingredient {
     ingredientName: string;
     quantity: number;
     unit: string;
+    ingredientId?: string;
 }
 
 interface DishFormProps {
@@ -18,16 +23,15 @@ interface DishFormProps {
 
 export default function DishForm({ initialData, isEdit = false }: DishFormProps) {
     const router = useRouter();
+    const dispatch = useDispatch();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const { data: globalIngredients = [] } = useGetIngredientsQuery({ activeOnly: true });
 
     const [formData, setFormData] = useState({
         name: initialData?.name || '',
         description: initialData?.description || '',
         category: initialData?.category || 'Main Course',
-        pricePerPlate: initialData?.pricePerPlate || '',
-        estimatedCostPerPlate: initialData?.estimatedCostPerPlate || '',
-        sellingPricePerPlate: initialData?.sellingPricePerPlate || '',
         isVeg: initialData?.isVeg !== undefined ? initialData.isVeg : true,
         imageUrl: initialData?.imageUrl || '',
     });
@@ -66,15 +70,93 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
         value: string | number
     ) => {
         const updated = [...ingredients];
-        updated[index] = {
-            ...updated[index],
-            [field]: value,
-        };
+        const item = { ...updated[index], [field]: value };
+
+        // If name changes, try to link to global ingredient
+        if (field === 'ingredientName') {
+            const matched = globalIngredients.find((g: any) => g.name.toLowerCase() === (value as string).toLowerCase());
+            if (matched) {
+                item.ingredientId = matched.id;
+                item.unit = matched.unit;
+            } else {
+                item.ingredientId = undefined;
+            }
+        }
+
+        updated[index] = item;
         setIngredients(updated);
     };
 
+    // Auto-calculate estimated cost based on linked ingredients
+    const calculatedCost = ingredients.reduce((sum, ing) => {
+        if (ing.ingredientId) {
+            const matched = globalIngredients.find((g: any) => g.id === ing.ingredientId);
+            if (matched) {
+                return sum + calculateIngredientCost(ing.quantity, ing.unit, Number(matched.pricePerUnit), matched.unit);
+            }
+        }
+        return sum;
+    }, 0);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Find ingredients that are not linked to global sub-items
+        const unlinkedIngredients = ingredients.filter(ing => ing.ingredientName && ing.quantity > 0 && !ing.ingredientId);
+
+        if (unlinkedIngredients.length > 0) {
+            const confirmMsg = `You have ${unlinkedIngredients.length} ingredient(s) that are not in the Global Sub Items list:\n\n` +
+                unlinkedIngredients.map(ing => `- ${ing.ingredientName}`).join('\n') +
+                `\n\nDo you want to automatically add them to Global Sub Items? (They will be added with a price of 0)`;
+
+            if (window.confirm(confirmMsg)) {
+                setLoading(true);
+                // 1. Create missing global ingredients
+                let allAddedSuccessfully = true;
+                const newIngredientMappings: Record<string, string> = {};
+
+                for (const unlinked of unlinkedIngredients) {
+                    try {
+                        const res = await addIngredient({
+                            name: unlinked.ingredientName,
+                            pricePerUnit: 0,
+                            unit: unlinked.unit || 'g'
+                        });
+
+                        if (res.success && res.data) {
+                            newIngredientMappings[unlinked.ingredientName] = res.data.id;
+                        } else {
+                            allAddedSuccessfully = false;
+                            console.error('Failed to add global ingredient:', unlinked.ingredientName, res.error);
+                        }
+                    } catch (error) {
+                        allAddedSuccessfully = false;
+                        console.error('Failed to add global ingredient:', unlinked.ingredientName, error);
+                    }
+                }
+
+                if (!allAddedSuccessfully) {
+                    setError('Failed to auto-add some ingredients to Global Sub Items. Please review or add them manually later.');
+                }
+
+                // 2. Update the local state with new IDs before saving dish
+                const updatedIngredients = ingredients.map(ing => {
+                    if (!ing.ingredientId && newIngredientMappings[ing.ingredientName]) {
+                        return { ...ing, ingredientId: newIngredientMappings[ing.ingredientName] };
+                    }
+                    return ing;
+                });
+
+                await saveDish(updatedIngredients);
+                return;
+            }
+        }
+
+        // Proceed without auto-adding if there are no unlinked items or user declined
+        await saveDish(ingredients);
+    };
+
+    const saveDish = async (finalIngredients: Ingredient[]) => {
         setLoading(true);
         setError('');
 
@@ -83,12 +165,14 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
                 name: formData.name,
                 description: formData.description,
                 category: formData.category,
-                pricePerPlate: formData.sellingPricePerPlate ? Number(formData.sellingPricePerPlate) : undefined,
-                estimatedCostPerPlate: formData.estimatedCostPerPlate ? Number(formData.estimatedCostPerPlate) : undefined,
-                sellingPricePerPlate: formData.sellingPricePerPlate ? Number(formData.sellingPricePerPlate) : undefined,
                 isVeg: formData.isVeg,
                 imageUrl: formData.imageUrl || undefined,
-                ingredients: ingredients.filter(ing => ing.ingredientName && ing.quantity > 0),
+                ingredients: finalIngredients.filter(ing => ing.ingredientName && ing.quantity > 0).map(ing => ({
+                    ingredientName: ing.ingredientName,
+                    quantity: ing.quantity,
+                    unit: ing.unit,
+                    ingredientId: ing.ingredientId || undefined
+                })),
             };
 
             const result = isEdit && initialData?.id
@@ -96,6 +180,7 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
                 : await createDish(data);
 
             if (result.success) {
+                dispatch(api.util.invalidateTags(['Dish']));
                 router.push('/dishes');
             } else {
                 setError(result.error || 'Failed to save dish');
@@ -230,69 +315,6 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
                 </div>
             </div>
 
-            {/* Pricing */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 space-y-4">
-                <h2 className="text-lg font-semibold text-slate-900">Pricing</h2>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Estimated Cost (₹)
-                        </label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={formData.estimatedCostPerPlate}
-                            onChange={(e) =>
-                                setFormData({
-                                    ...formData,
-                                    estimatedCostPerPlate: e.target.value,
-                                })
-                            }
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                            placeholder="0.00"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Selling Price (₹) *
-                        </label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            required
-                            value={formData.sellingPricePerPlate}
-                            onChange={(e) =>
-                                setFormData({
-                                    ...formData,
-                                    sellingPricePerPlate: e.target.value,
-                                })
-                            }
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                            placeholder="0.00"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Profit Margin
-                        </label>
-                        <div className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-600 font-medium">
-                            {formData.sellingPricePerPlate && formData.estimatedCostPerPlate
-                                ? `${(
-                                    ((Number(formData.sellingPricePerPlate) -
-                                        Number(formData.estimatedCostPerPlate)) /
-                                        Number(formData.sellingPricePerPlate)) *
-                                    100
-                                ).toFixed(1)}%`
-                                : '-'}
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             {/* Ingredients */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 space-y-4">
@@ -309,15 +331,16 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
                 </div>
 
                 <div className="space-y-3">
-                    {ingredients.map((ingredient, index) => (
+                    {ingredients.map((ing, index) => (
                         <div
                             key={index}
                             className="grid grid-cols-1 sm:grid-cols-12 gap-2 p-3 border border-slate-200 rounded-lg"
                         >
-                            <div className="sm:col-span-5">
+                            <div className="sm:col-span-5 relative">
                                 <input
                                     type="text"
-                                    value={ingredient.ingredientName}
+                                    list="global-ingredients"
+                                    value={ing.ingredientName}
                                     onChange={(e) =>
                                         handleIngredientChange(
                                             index,
@@ -328,13 +351,18 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm"
                                     placeholder="Ingredient name"
                                 />
+                                <datalist id="global-ingredients">
+                                    {globalIngredients.map((g: any) => (
+                                        <option key={g.id} value={g.name} />
+                                    ))}
+                                </datalist>
                             </div>
                             <div className="sm:col-span-3">
                                 <input
                                     type="number"
                                     step="0.01"
                                     min="0"
-                                    value={ingredient.quantity}
+                                    value={ing.quantity}
                                     onChange={(e) =>
                                         handleIngredientChange(
                                             index,
@@ -347,19 +375,31 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
                                 />
                             </div>
                             <div className="sm:col-span-3">
-                                <select
-                                    value={ingredient.unit}
-                                    onChange={(e) =>
-                                        handleIngredientChange(index, 'unit', e.target.value)
-                                    }
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm"
-                                >
-                                    {units.map((unit) => (
-                                        <option key={unit} value={unit}>
-                                            {unit}
-                                        </option>
-                                    ))}
-                                </select>
+                                {(() => {
+                                    const matchedGlobal = ing.ingredientId
+                                        ? globalIngredients.find((g: any) => g.id === ing.ingredientId)
+                                        : null;
+
+                                    const availableUnits = matchedGlobal
+                                        ? getAvailableUnitsForGlobal(matchedGlobal.unit)
+                                        : units;
+
+                                    return (
+                                        <select
+                                            value={ing.unit}
+                                            onChange={(e) =>
+                                                handleIngredientChange(index, 'unit', e.target.value)
+                                            }
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm"
+                                        >
+                                            {availableUnits.map((u) => (
+                                                <option key={u} value={u}>
+                                                    {u}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    );
+                                })()}
                             </div>
                             <div className="sm:col-span-1 flex items-center justify-center">
                                 <button

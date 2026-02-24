@@ -21,13 +21,13 @@ import {
 import PageLayout from '@/components/PageLayout'
 import BulkUploadModal from '@/components/BulkUploadModal'
 import InvoiceDownloadButton from '@/components/InvoiceDownloadButton'
-import { getEvents, getEventsForGroceryPurchase, bulkUploadEvents } from '@/lib/actions/events'
+import { getEventsForGroceryPurchase, bulkUploadEvents } from '@/lib/actions/events'
 import { validateEventsData, transformEventsDataForUpload, downloadGroceryList } from '@/lib/excel'
+import { useGetEventsQuery } from '@/store/api'
 
 export default function EventsPage() {
   const router = useRouter()
-  const [events, setEvents] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: events = [], isLoading: loading, refetch } = useGetEventsQuery()
   const [activeTab, setActiveTab] = useState<'all' | 'local' | 'main'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -45,27 +45,9 @@ export default function EventsPage() {
   // TODO: Replace with actual user ID from auth
   const userId = 'temp-user-id'
 
-  useEffect(() => {
-    loadEvents()
-  }, [])
-
-  async function loadEvents() {
-    setLoading(true)
-    try {
-      const result = await getEvents()
-      if (result.success && result.data) {
-        setEvents(result.data)
-      }
-    } catch (error) {
-      console.error('Failed to load events:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleOpenGroceryList = async () => {
     setManualMode(false)
-    setSelectedEventIds(new Set())
+    setSelectedEventIds(new Set<string>())
     setGroceryLoading(true)
     const targetDate = new Date(groceryDate + 'T00:00:00')
     const result = await getEventsForGroceryPurchase(targetDate)
@@ -79,7 +61,7 @@ export default function EventsPage() {
   const handleGroceryDateChange = async (date: string) => {
     setGroceryDate(date)
     setManualMode(false)
-    setSelectedEventIds(new Set())
+    setSelectedEventIds(new Set<string>())
     setGroceryLoading(true)
     const targetDate = new Date(date + 'T00:00:00')
     const result = await getEventsForGroceryPurchase(targetDate)
@@ -92,10 +74,10 @@ export default function EventsPage() {
   const handleEnableManualMode = () => {
     setManualMode(true)
     // Pre-select all upcoming/in-progress events
-    const ids = new Set(
+    const ids = new Set<string>(
       events
-        .filter(e => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS')
-        .map(e => e.id)
+        .filter((e: any) => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS')
+        .map((e: any) => e.id)
     )
     setSelectedEventIds(ids)
   }
@@ -111,7 +93,7 @@ export default function EventsPage() {
 
   const getGroceryEventsToDownload = () => {
     if (manualMode) {
-      return events.filter(e => selectedEventIds.has(e.id))
+      return events.filter((e: any) => selectedEventIds.has(e.id))
     }
     return groceryEvents
   }
@@ -121,13 +103,13 @@ export default function EventsPage() {
     const result = await bulkUploadEvents(transformedData)
 
     if (result.success) {
-      loadEvents()
+      refetch()
     }
 
     return result
   }
 
-  const filteredEvents = events.filter((event) => {
+  const filteredEvents = events.filter((event: any) => {
     // Tab filter
     if (activeTab === 'local' && event.eventType !== 'LOCAL_ORDER') return false
     if (activeTab === 'main' && event.eventType !== 'MAIN_EVENT') return false
@@ -150,9 +132,9 @@ export default function EventsPage() {
 
   const stats = {
     all: events.length,
-    local: events.filter((e) => e.eventType === 'LOCAL_ORDER').length,
-    main: events.filter((e) => e.eventType === 'MAIN_EVENT').length,
-    upcoming: events.filter((e) => e.status === 'UPCOMING').length,
+    local: events.filter((e: any) => e.eventType === 'LOCAL_ORDER').length,
+    main: events.filter((e: any) => e.eventType === 'MAIN_EVENT').length,
+    upcoming: events.filter((e: any) => e.status === 'UPCOMING').length,
   }
 
   const getStatusColor = (status: string) => {
@@ -240,8 +222,8 @@ export default function EventsPage() {
                   key={tab.value}
                   onClick={() => setActiveTab(tab.value as any)}
                   className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === tab.value
-                      ? 'bg-slate-900 text-white shadow-md'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-slate-900 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                 >
                   {tab.label}
@@ -283,7 +265,7 @@ export default function EventsPage() {
           {/* Events List */}
           <div className="space-y-4">
             {filteredEvents.length > 0 ? (
-              filteredEvents.map((event) => (
+              filteredEvents.map((event: any) => (
                 <div
                   key={event.id}
                   className="bg-white rounded-3xl p-6 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 hover:shadow-md transition-all group"
@@ -305,8 +287,8 @@ export default function EventsPage() {
                           </span>
                           <span
                             className={`px-3 py-1 rounded-lg text-xs font-semibold ${event.eventType === 'LOCAL_ORDER'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-purple-100 text-purple-700'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-purple-100 text-purple-700'
                               }`}
                           >
                             {event.eventType === 'LOCAL_ORDER' ? 'Local Order' : 'Main Event'}
@@ -458,10 +440,10 @@ export default function EventsPage() {
                   <p className="text-sm text-slate-500 mb-4">
                     Select the events you want to include in the grocery list:
                   </p>
-                  {events.filter(e => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS').length > 0 ? (
+                  {events.filter((e: any) => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS').length > 0 ? (
                     events
-                      .filter(e => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS')
-                      .map(event => (
+                      .filter((e: any) => e.status === 'UPCOMING' || e.status === 'IN_PROGRESS')
+                      .map((event: any) => (
                         <label
                           key={event.id}
                           className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 cursor-pointer hover:border-slate-300 transition-colors"

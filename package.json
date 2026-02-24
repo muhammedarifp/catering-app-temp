@@ -13,8 +13,10 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
     "@prisma/adapter-pg": "^7.4.0",
     "@prisma/client": "^7.4.0",
+    "@reduxjs/toolkit": "^2.11.2",
     "bcrypt": "^6.0.0",
     "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.7",
@@ -24,6 +26,7 @@
     "prisma": "^7.4.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-redux": "^9.2.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

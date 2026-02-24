@@ -2,14 +2,13 @@
 
 import { revalidatePath } from 'next/cache'
 import prisma from '@/lib/prisma'
+import { recalculateDishCost } from './ingredients'
 
 // Helper to serialize Decimal fields to numbers
 function serializeDish(dish: any): any {
   return {
     ...dish,
-    pricePerPlate: Number(dish.pricePerPlate),
     estimatedCostPerPlate: Number(dish.estimatedCostPerPlate),
-    sellingPricePerPlate: Number(dish.sellingPricePerPlate),
     ingredients: dish.ingredients?.map((ing: any) => ({
       ...ing,
       quantity: Number(ing.quantity),
@@ -21,11 +20,9 @@ export async function createDish(data: {
   name: string
   description?: string
   category: string
-  pricePerPlate?: number
   estimatedCostPerPlate?: number
-  sellingPricePerPlate?: number
   isVeg?: boolean
-  ingredients: Array<{ ingredientName: string; quantity: number; unit: string }>
+  ingredients: Array<{ ingredientName: string; quantity: number; unit: string; ingredientId?: string }>
   imageUrl?: string
 }) {
   try {
@@ -34,9 +31,7 @@ export async function createDish(data: {
         name: data.name,
         description: data.description,
         category: data.category,
-        pricePerPlate: data.sellingPricePerPlate || data.pricePerPlate || 0,
         estimatedCostPerPlate: data.estimatedCostPerPlate || 0,
-        sellingPricePerPlate: data.sellingPricePerPlate || data.pricePerPlate || 0,
         isVeg: data.isVeg ?? true,
         imageUrl: data.imageUrl,
         ingredients: {
@@ -44,13 +39,20 @@ export async function createDish(data: {
             ingredientName: i.ingredientName,
             quantity: i.quantity,
             unit: i.unit,
+            ingredientId: i.ingredientId || undefined,
           })),
         },
       },
       include: {
-        ingredients: true,
+        ingredients: {
+          include: {
+            ingredient: true,
+          },
+        },
       },
     })
+
+    await recalculateDishCost(dish.id)
 
     revalidatePath('/dishes')
     return { success: true, data: serializeDish(dish) }
@@ -68,7 +70,11 @@ export async function getDishes(category?: string, isActive?: boolean) {
         ...(isActive !== undefined && { isActive }),
       },
       include: {
-        ingredients: true,
+        ingredients: {
+          include: {
+            ingredient: true,
+          },
+        },
       },
       orderBy: {
         name: 'asc',
@@ -87,7 +93,11 @@ export async function getDishById(id: string) {
     const dish = await prisma.dish.findUnique({
       where: { id },
       include: {
-        ingredients: true,
+        ingredients: {
+          include: {
+            ingredient: true,
+          }
+        },
       },
     })
 
@@ -108,13 +118,11 @@ export async function updateDish(
     name?: string
     description?: string
     category?: string
-    pricePerPlate?: number
     estimatedCostPerPlate?: number
-    sellingPricePerPlate?: number
     isVeg?: boolean
     imageUrl?: string
     isActive?: boolean
-    ingredients?: Array<{ ingredientName: string; quantity: number; unit: string }>
+    ingredients?: Array<{ ingredientName: string; quantity: number; unit: string; ingredientId?: string }>
   }
 ) {
   try {
@@ -131,6 +139,7 @@ export async function updateDish(
               ingredientName: i.ingredientName,
               quantity: i.quantity,
               unit: i.unit,
+              ingredientId: i.ingredientId || undefined,
             })),
           },
         }),
@@ -170,7 +179,7 @@ export async function bulkUploadDishes(dishes: Array<{
   estimatedCostPerPlate?: number
   sellingPricePerPlate?: number
   isVeg?: boolean
-  ingredients?: Array<{ ingredientName: string; quantity: number; unit: string }>
+  ingredients?: Array<{ ingredientName: string; quantity: number; unit: string; ingredientId?: string }>
 }>) {
   try {
     const createdDishes = await Promise.all(
@@ -190,6 +199,7 @@ export async function bulkUploadDishes(dishes: Array<{
                   ingredientName: i.ingredientName,
                   quantity: i.quantity,
                   unit: i.unit,
+                  ingredientId: i.ingredientId || undefined,
                 })),
               }
               : undefined,
@@ -197,6 +207,10 @@ export async function bulkUploadDishes(dishes: Array<{
         })
       )
     )
+
+    for (const dish of createdDishes) {
+      await recalculateDishCost(dish.id)
+    }
 
     revalidatePath('/dishes')
     return { success: true, data: createdDishes.map(serializeDish) }

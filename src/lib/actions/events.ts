@@ -112,12 +112,22 @@ export async function createEvent(data: {
   }
 }
 
-export async function getEvents(eventType?: EventType, status?: EventStatus) {
+export async function getEvents(
+  eventType?: EventType,
+  status?: EventStatus,
+  dateRange?: { start: Date; end: Date }
+) {
   try {
     const events = await prisma.event.findMany({
       where: {
         ...(eventType && { eventType }),
         ...(status && { status }),
+        ...(dateRange && {
+          eventDate: {
+            gte: dateRange.start,
+            lte: dateRange.end,
+          },
+        }),
       },
       include: {
         dishes: {

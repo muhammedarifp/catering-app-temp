@@ -38,7 +38,7 @@ function serializeEnquiry(enquiry: any): any {
 
 export async function updateEnquiryDetails(
   id: string,
-  data: { occasion?: string; serviceType?: string }
+  data: { occasion?: string[]; serviceType?: string[] }
 ) {
   try {
     const enquiry = await prisma.enquiry.update({
@@ -60,8 +60,8 @@ export async function createEnquiry(data: {
   location: string
   eventDate: Date
   eventTime: string
-  occasion?: string
-  serviceType?: string
+  occasion?: string[]
+  serviceType?: string[]
   dishes: Array<{ dishId: string; quantity: number; pricePerPlate: number }>
   services: Array<{ serviceName: string; description?: string; price: number }>
   createdById: string
@@ -213,10 +213,21 @@ export async function updateEnquiryStatus(enquiryId: string, status: EnquiryStat
   }
 }
 
-export async function getEnquiries(status?: EnquiryStatus) {
+export async function getEnquiries(
+  status?: EnquiryStatus,
+  dateRange?: { start: Date; end: Date }
+) {
   try {
     const enquiries = await prisma.enquiry.findMany({
-      where: status ? { status } : undefined,
+      where: {
+        ...(status ? { status } : {}),
+        ...(dateRange && {
+          createdAt: {
+            gte: dateRange.start,
+            lte: dateRange.end,
+          },
+        }),
+      },
       include: {
         dishes: {
           include: {
@@ -301,5 +312,131 @@ export async function addEnquiryUpdate(enquiryId: string, description: string, u
   } catch (error) {
     console.error('Failed to add enquiry update:', error)
     return { success: false, error: 'Failed to add update' }
+  }
+}
+
+// ==========================================
+// QUOTATION EDITING (DISHES & SERVICES)
+// ==========================================
+
+export async function recalculateEnquiryTotal(enquiryId: string) {
+  try {
+    const enquiry = await prisma.enquiry.findUnique({
+      where: { id: enquiryId },
+      include: { dishes: true, services: true },
+    })
+
+    if (!enquiry) return null
+
+    const dishesTotal = enquiry.dishes.reduce((sum, d) => sum + (d.quantity * Number(d.pricePerPlate)), 0)
+    const servicesTotal = enquiry.services.reduce((sum, s) => sum + Number(s.price), 0)
+    const newTotal = dishesTotal + servicesTotal
+
+    await prisma.enquiry.update({
+      where: { id: enquiryId },
+      data: { totalAmount: newTotal },
+    })
+
+    return newTotal
+  } catch (error) {
+    console.error("Failed to recalculate total:", error)
+    return null
+  }
+}
+
+export async function addEnquiryDish(enquiryId: string, data: { dishId: string, quantity: number, pricePerPlate: number }) {
+  try {
+    await prisma.enquiryDish.create({
+      data: {
+        enquiryId,
+        dishId: data.dishId,
+        quantity: data.quantity,
+        pricePerPlate: data.pricePerPlate,
+      }
+    })
+    await recalculateEnquiryTotal(enquiryId)
+    revalidatePath(`/enquiries/${enquiryId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to add dish:", error)
+    return { success: false, error: "Failed to add dish" }
+  }
+}
+
+export async function updateEnquiryDish(id: string, enquiryId: string, data: { quantity: number, pricePerPlate: number }) {
+  try {
+    await prisma.enquiryDish.update({
+      where: { id },
+      data: {
+        quantity: data.quantity,
+        pricePerPlate: data.pricePerPlate,
+      }
+    })
+    await recalculateEnquiryTotal(enquiryId)
+    revalidatePath(`/enquiries/${enquiryId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to update dish:", error)
+    return { success: false, error: "Failed to update dish" }
+  }
+}
+
+export async function removeEnquiryDish(id: string, enquiryId: string) {
+  try {
+    await prisma.enquiryDish.delete({ where: { id } })
+    await recalculateEnquiryTotal(enquiryId)
+    revalidatePath(`/enquiries/${enquiryId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to remove dish:", error)
+    return { success: false, error: "Failed to remove dish" }
+  }
+}
+
+export async function addEnquiryService(enquiryId: string, data: { serviceName: string, price: number }) {
+  try {
+    await prisma.enquiryService.create({
+      data: {
+        enquiryId,
+        serviceName: data.serviceName,
+        price: data.price,
+      }
+    })
+    await recalculateEnquiryTotal(enquiryId)
+    revalidatePath(`/enquiries/${enquiryId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to add service:", error)
+    return { success: false, error: "Failed to add service" }
+  }
+}
+
+export async function updateEnquiryService(id: string, enquiryId: string, data: { serviceName: string, price: number }) {
+  try {
+    await prisma.enquiryService.update({
+      where: { id },
+      data: {
+        serviceName: data.serviceName,
+        price: data.price,
+      }
+    })
+    await recalculateEnquiryTotal(enquiryId)
+    revalidatePath(`/enquiries/${enquiryId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to update service:", error)
+    return { success: false, error: "Failed to update service" }
+  }
+}
+
+export async function removeEnquiryService(id: string, enquiryId: string) {
+  try {
+    await prisma.enquiryService.delete({ where: { id } })
+    await recalculateEnquiryTotal(enquiryId)
+    revalidatePath(`/enquiries/${enquiryId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to remove service:", error)
+    return { success: false, error: "Failed to remove service" }
   }
 }

@@ -20,7 +20,7 @@ interface ServiceItem {
 interface AddEnquiryModalProps {
   isOpen: boolean
   onClose: () => void
-  dishes: Array<{ id: string; name: string; pricePerPlate: number }>
+  dishes: Array<{ id: string; name: string; pricePerPlate: number; category?: string }>
   userId: string
 }
 
@@ -33,8 +33,8 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
     location: '',
     eventDate: '',
     eventTime: '',
-    occasion: '',
-    serviceType: '',
+    occasion: [] as string[],
+    serviceType: [] as string[],
   })
 
   const [selectedDishes, setSelectedDishes] = useState<DishItem[]>([])
@@ -108,8 +108,8 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
         location: formData.location,
         eventDate: new Date(formData.eventDate),
         eventTime: formData.eventTime,
-        occasion: formData.occasion || undefined,
-        serviceType: formData.serviceType || undefined,
+        occasion: formData.occasion.length > 0 ? formData.occasion : undefined,
+        serviceType: formData.serviceType.length > 0 ? formData.serviceType : undefined,
         dishes: selectedDishes.map(d => ({
           dishId: d.dishId,
           quantity: d.quantity,
@@ -132,8 +132,8 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
           location: '',
           eventDate: '',
           eventTime: '',
-          occasion: '',
-          serviceType: '',
+          occasion: [],
+          serviceType: [],
         })
         setSelectedDishes([])
         setServices([])
@@ -207,34 +207,7 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
             {/* Event Details */}
             <div>
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Event Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Number of People *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    value={formData.peopleCount}
-                    onChange={e => setFormData({ ...formData, peopleCount: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                    placeholder="Enter number of guests"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Location *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.location}
-                    onChange={e => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                    placeholder="Enter event location"
-                  />
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Event Date *
@@ -261,84 +234,204 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Occasion <span className="text-slate-400 font-normal">(optional)</span>
+                    Venue *
                   </label>
                   <input
                     type="text"
-                    value={formData.occasion}
-                    onChange={e => setFormData({ ...formData, occasion: e.target.value })}
+                    required
+                    value={formData.location}
+                    onChange={e => setFormData({ ...formData, location: e.target.value })}
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                    placeholder="e.g. NIKKAH, WEDDING, BIRTHDAY"
+                    placeholder="Enter event venue"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Service Type <span className="text-slate-400 font-normal">(optional)</span>
+                    Number of Guests *
                   </label>
                   <input
-                    type="text"
-                    value={formData.serviceType}
-                    onChange={e => setFormData({ ...formData, serviceType: e.target.value })}
+                    type="number"
+                    required
+                    min="1"
+                    value={formData.peopleCount}
+                    onChange={e => setFormData({ ...formData, peopleCount: e.target.value })}
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                    placeholder="e.g. BOX COUNTER, BUFFET"
+                    placeholder="Enter number of guests"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Event Type / Occasion */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-3">
+                    EVENT TYPE <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'WEDDING RECEPTION', 'NIKKAH', 'SALKARAM', 'FAMILY MEET',
+                      'MEETING', 'ENGAGEMENT', 'CORPORATE EVENT', 'GET-TOGETHER',
+                      'BIRTHDAY PARTY', 'CONFERENCE', 'OTHER'
+                    ].map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.occasion
+                          const updated = current.includes(type)
+                            ? current.filter(t => t !== type)
+                            : [...current, type]
+                          setFormData({ ...formData, occasion: updated })
+                        }}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${formData.occasion.includes(type)
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Service Type */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-3">
+                    SERVICE TYPE
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'BUFFET', 'BOX COUNTER', 'TABLE SERVICE'
+                    ].map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.serviceType
+                          const updated = current.includes(type)
+                            ? current.filter(t => t !== type)
+                            : [...current, type]
+                          setFormData({ ...formData, serviceType: updated })
+                        }}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${formData.serviceType.includes(type)
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Dishes */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
+            {/* Dishes by Category */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-2">
                 <h3 className="text-lg font-semibold text-slate-900">Dishes & Quantity</h3>
-                <button
-                  type="button"
-                  onClick={handleAddDish}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors text-sm font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Dish
-                </button>
               </div>
-              <div className="space-y-3">
-                {selectedDishes.map((dish, index) => (
-                  <div key={index} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                    <select
-                      value={dish.dishId}
-                      onChange={e => handleUpdateDish(index, 'dishId', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900"
-                    >
-                      {dishes.map(d => (
-                        <option key={d.id} value={d.id}>
-                          {d.name} - ₹{d.pricePerPlate}/plate
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min="1"
-                      value={dish.quantity}
-                      onChange={e => handleUpdateDish(index, 'quantity', parseInt(e.target.value))}
-                      className="w-24 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900"
-                      placeholder="Qty"
-                    />
-                    <div className="w-32 text-right font-semibold text-slate-900">
-                      ₹{(dish.quantity * dish.pricePerPlate).toLocaleString()}
+
+              {[
+                'WELCOME DRINK', 'STARTER & SOUPS', 'TEA', 'BREADS', 'RICE',
+                'CURRY & GRAVY', 'FRY & GRILLED', 'SALADS', 'DRINK', 'DESSERT', 'OTHER'
+              ].map(category => {
+
+                // Filter dishes available in this category for the dropdowns
+                let categoryDishes = dishes.filter(d =>
+                  d.category?.toUpperCase() === category.replace(' & ', '_AND_').replace(' ', '_') ||
+                  d.category?.toUpperCase() === category ||
+                  d.category?.toUpperCase().includes(category.split(' ')[0])
+                )
+
+                // Fallback if no specific categorization
+                if (categoryDishes.length === 0 && dishes.length > 0) {
+                  categoryDishes = dishes;
+                }
+
+                // Filter selected dishes matching this category
+                // Based on the selected item's mapped original dish category
+                const selectedInCategory = selectedDishes.map((sd, i) => ({ ...sd, originalIndex: i })).filter(sd => {
+                  const originalDish = dishes.find(d => d.id === sd.dishId)
+                  const dCat = originalDish?.category?.toUpperCase().replace('_', ' ') || 'OTHER'
+                  if (category === 'OTHER') {
+                    return !['WELCOME DRINK', 'STARTER & SOUPS', 'TEA', 'BREADS', 'RICE', 'CURRY & GRAVY', 'FRY & GRILLED', 'SALADS', 'DRINK', 'DESSERT'].some(c => dCat.includes(c.split(' ')[0]))
+                  }
+                  return dCat.includes(category.split(' ')[0])
+                })
+
+                return (
+                  <div key={category} className="bg-slate-50/50 rounded-2xl border border-slate-200 p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                      <h4 className="font-semibold text-slate-800">{category}</h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (categoryDishes.length > 0) {
+                            setSelectedDishes([
+                              ...selectedDishes,
+                              {
+                                dishId: categoryDishes[0].id,
+                                dishName: categoryDishes[0].name,
+                                quantity: 1,
+                                pricePerPlate: Number(categoryDishes[0].pricePerPlate),
+                              },
+                            ])
+                          } else if (dishes.length > 0) {
+                            handleAddDish() // Fallback
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium w-fit"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add item
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveDish(index)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+
+                    {selectedInCategory.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedInCategory.map((dish) => (
+                          <div key={dish.originalIndex} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 bg-white rounded-xl border border-slate-200">
+                            <select
+                              value={dish.dishId}
+                              onChange={e => handleUpdateDish(dish.originalIndex, 'dishId', e.target.value)}
+                              className="flex-1 min-w-[200px] px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900"
+                            >
+                              {categoryDishes.map(d => (
+                                <option key={d.id} value={d.id}>
+                                  {d.name} - ₹{d.pricePerPlate}/plate
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="number"
+                              min="1"
+                              value={dish.quantity}
+                              onChange={e => handleUpdateDish(dish.originalIndex, 'quantity', parseInt(e.target.value))}
+                              className="w-24 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900"
+                              placeholder="Qty"
+                            />
+                            <div className="w-24 text-right font-semibold text-slate-900">
+                              ₹{(dish.quantity * dish.pricePerPlate).toLocaleString()}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDish(dish.originalIndex)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-sm text-slate-400 bg-white/50 rounded-xl border border-slate-100 border-dashed">
+                        No {category.toLowerCase()} added yet.
+                      </div>
+                    )}
                   </div>
-                ))}
-                {selectedDishes.length === 0 && (
-                  <div className="text-center py-8 text-slate-400">
-                    No dishes added yet. Click "Add Dish" to start.
-                  </div>
-                )}
-              </div>
+                )
+              })}
             </div>
 
             {/* Services */}
@@ -408,7 +501,7 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
           </div>
 
           {/* Footer */}
-          <div className="px-8 py-6 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
+          <div className="px-8 py-6 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3 z-10 sticky bottom-0">
             <button
               type="button"
               onClick={onClose}
@@ -425,8 +518,8 @@ export default function AddEnquiryModal({ isOpen, onClose, dishes, userId }: Add
               {loading ? 'Creating...' : 'Create Enquiry'}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+        </form >
+      </div >
+    </div >
   )
 }

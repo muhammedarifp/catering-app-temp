@@ -44,6 +44,7 @@ model User {
 // Enquiry Management (Quotations)
 enum EnquiryStatus {
   PENDING
+  PRICE_QUOTED
   LOST
   SUCCESS
 }
@@ -60,8 +61,8 @@ model Enquiry {
   location      String
   eventDate     DateTime
   eventTime     String
-  occasion      String?   // e.g. "NIKKAH", "WEDDING", "BIRTHDAY"
-  serviceType   String?   // e.g. "BOX COUNTER", "BUFFET"
+  occasion      String[]  @default([]) // e.g. "NIKKAH", "WEDDING", "BIRTHDAY"
+  serviceType   String[]  @default([]) // e.g. "BOX COUNTER", "BUFFET"
 
   // Quotation Details
   quotationNumber String     @unique
@@ -223,9 +224,7 @@ model Dish {
   name                    String
   description             String?
   category                String   // e.g., "Appetizer", "Main Course", "Dessert"
-  pricePerPlate           Decimal  // Deprecated - use sellingPricePerPlate
   estimatedCostPerPlate   Decimal  @default(0)
-  sellingPricePerPlate    Decimal  @default(0)
   isVeg                   Boolean  @default(true)
 
   // Image (optional)
@@ -251,9 +250,29 @@ model DishIngredient {
   quantity        Decimal
   unit            String  // kg, liters, pieces, etc.
 
+  ingredientId    String?
+  ingredient      Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+
   dish            Dish    @relation(fields: [dishId], references: [id], onDelete: Cascade)
 
   @@index([dishId])
+  @@index([ingredientId])
+}
+
+// Global Ingredients System
+model Ingredient {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  pricePerUnit Decimal  @default(0)
+  unit         String   @default("kg")
+  
+  dishIngredients DishIngredient[]
+  
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([name])
 }
 
 // Other Expenses
@@ -368,6 +387,8 @@ model Todo {
 
   createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
   createdById String
+
+  orderIndex  Int      @default(0)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

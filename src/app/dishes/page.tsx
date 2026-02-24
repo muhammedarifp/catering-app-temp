@@ -2,43 +2,36 @@
 
 import PageLayout from '@/components/PageLayout';
 import BulkUploadModal from '@/components/BulkUploadModal';
-import { Plus, Search, Edit, Trash2, Upload, ChefHat, ArrowRight } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Upload, ChefHat, ArrowRight, ChevronDown, ChevronRight, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getDishes, deleteDish, bulkUploadDishes } from '@/lib/actions/dishes';
+import SubItemsList from '@/components/SubItemsList';
+import { deleteDish, bulkUploadDishes } from '@/lib/actions/dishes';
 import { validateDishesData, transformDishesDataForUpload } from '@/lib/excel';
+import { useGetDishesQuery } from '@/store/api';
+import { calculateIngredientCost } from '@/lib/utils/units';
 
 export default function DishesPage() {
     const [searchQuery, setSearchQuery] = useState('');
-    const [dishes, setDishes] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: dishes = [], isLoading: loading, refetch } = useGetDishesQuery({});
     const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+    const [activeTab, setActiveTab] = useState<'DISHES' | 'SUB_ITEMS'>('DISHES');
+    const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
     const router = useRouter();
 
-    useEffect(() => {
-        loadDishes();
-    }, []);
-
-    async function loadDishes() {
-        setLoading(true);
-        try {
-            const result = await getDishes();
-            if (result.success && result.data) {
-                setDishes(result.data);
-            }
-        } catch (error) {
-            console.error('Failed to load dishes:', error);
-        } finally {
-            setLoading(false);
-        }
-    }
+    const toggleRow = (dishId: string) => {
+        setExpandedRows(prev => ({
+            ...prev,
+            [dishId]: !prev[dishId]
+        }));
+    };
 
     const handleDelete = async (id: string, name: string) => {
         if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
         const result = await deleteDish(id);
         if (result.success) {
-            setDishes(prev => prev.filter(d => d.id !== id));
+            refetch();
         }
     };
 
@@ -47,13 +40,13 @@ export default function DishesPage() {
         const result = await bulkUploadDishes(transformedData);
 
         if (result.success) {
-            loadDishes();
+            refetch();
         }
 
         return result;
     };
 
-    const filteredDishes = dishes.filter(dish =>
+    const filteredDishes = dishes.filter((dish: any) =>
         dish.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         dish.category.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -84,98 +77,180 @@ export default function DishesPage() {
                     </div>
                 </div>
 
-                {/* Filters */}
-                <div className="bg-white border border-zinc-200 p-4 mb-6">
-                    <div className="relative max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                        <input
-                            type="text"
-                            placeholder="Search dishes..."
-                            className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-200 focus:ring-zinc-900"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                        />
-                    </div>
+                {/* Tabs */}
+                <div className="flex border-b border-zinc-200 mb-6">
+                    <button
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'DISHES'
+                            ? 'border-zinc-900 text-zinc-900'
+                            : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
+                            }`}
+                        onClick={() => setActiveTab('DISHES')}
+                    >
+                        Dishes
+                    </button>
+                    <button
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'SUB_ITEMS'
+                            ? 'border-zinc-900 text-zinc-900'
+                            : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
+                            }`}
+                        onClick={() => setActiveTab('SUB_ITEMS')}
+                    >
+                        Sub Items (Ingredients)
+                    </button>
                 </div>
 
-                {/* List */}
-                <div className="bg-white border border-zinc-200 overflow-hidden">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-zinc-50 border-b border-zinc-200">
-                            <tr>
-                                <th className="px-4 py-3 font-medium text-zinc-500">Dish Name</th>
-                                <th className="px-4 py-3 font-medium text-zinc-500">Category</th>
-                                <th className="px-4 py-3 font-medium text-zinc-500">Type</th>
-                                <th className="px-4 py-3 font-medium text-zinc-500 text-right">Cost</th>
-                                <th className="px-4 py-3 font-medium text-zinc-500 text-right">Price</th>
-                                <th className="px-4 py-3 font-medium text-zinc-500 text-right">Margin</th>
-                                <th className="px-4 py-3 font-medium text-zinc-500 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-100">
-                            {filteredDishes.map(dish => {
-                                const margin = dish.sellingPricePerPlate - dish.estimatedCostPerPlate;
-                                const marginPercent = Math.round((margin / dish.sellingPricePerPlate) * 100);
-
-                                return (
-                                    <tr key={dish.id} className="hover:bg-zinc-50 group">
-                                        <td className="px-4 py-3 font-medium text-zinc-900">
-                                            <Link href={`/dishes/${dish.id}`} className="flex items-center gap-3 hover:text-blue-600 transition-colors">
-                                                <div className="h-8 w-8 rounded bg-zinc-100 flex items-center justify-center text-zinc-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
-                                                    <ChefHat className="h-4 w-4" />
-                                                </div>
-                                                {dish.name}
-                                            </Link>
-                                        </td>
-                                        <td className="px-4 py-3 text-zinc-500 capitalize">{dish.category.replace('_', ' ')}</td>
-                                        <td className="px-4 py-3">
-                                            <div className={`flex items-center gap-1.5 text-xs font-medium ${dish.isVeg ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${dish.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                                                {dish.isVeg ? 'Veg' : 'Non-Veg'}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-right text-zinc-600">₹{dish.estimatedCostPerPlate}</td>
-                                        <td className="px-4 py-3 text-right font-medium text-zinc-900">₹{dish.sellingPricePerPlate}</td>
-                                        <td className="px-4 py-3 text-right">
-                                            <span className={`inline-block px-1.5 py-0.5 text-xs font-semibold rounded ${marginPercent >= 50 ? 'bg-emerald-100 text-emerald-700' :
-                                                marginPercent >= 30 ? 'bg-blue-100 text-blue-700' :
-                                                    'bg-amber-100 text-amber-700'
-                                                }`}>
-                                                {marginPercent}%
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <a href={`/dishes/${dish.id}`} className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="View Details">
-                                                    <ArrowRight className="h-4 w-4" />
-                                                </a>
-                                                <button
-                                                    onClick={() => router.push(`/dishes/${dish.id}/edit`)}
-                                                    className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded"
-                                                    title="Edit"
-                                                >
-                                                    <Edit className="h-4 w-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(dish.id, dish.name)}
-                                                    className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    {filteredDishes.length === 0 && (
-                        <div className="p-8 text-center text-zinc-500">
-                            No dishes found matching your search.
+                {activeTab === 'SUB_ITEMS' ? (
+                    <SubItemsList />
+                ) : (
+                    <>
+                        {/* Filters */}
+                        <div className="bg-white border border-zinc-200 p-4 mb-6 rounded-xl">
+                            <div className="relative max-w-md">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search dishes..."
+                                    className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-200 focus:ring-zinc-900 rounded-lg"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                />
+                            </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* List */}
+                        <div className="bg-white border border-zinc-200 overflow-hidden rounded-xl">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-zinc-50 border-b border-zinc-200">
+                                    <tr>
+                                        <th className="px-4 py-3 font-medium text-zinc-500 w-10"></th>
+                                        <th className="px-4 py-3 font-medium text-zinc-500">Dish Name</th>
+                                        <th className="px-4 py-3 font-medium text-zinc-500">Category</th>
+                                        <th className="px-4 py-3 font-medium text-zinc-500">Type</th>
+                                        <th className="px-4 py-3 font-medium text-zinc-500 text-right">Cost</th>
+                                        <th className="px-4 py-3 font-medium text-zinc-500 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-100">
+                                    {filteredDishes.map((dish: any) => {
+                                        return (
+                                            <React.Fragment key={dish.id}>
+                                                <tr className="hover:bg-zinc-50 group border-b border-zinc-100 last:border-0">
+                                                    <td className="px-4 py-3">
+                                                        <button
+                                                            onClick={() => toggleRow(dish.id)}
+                                                            className="p-1 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded transition-colors"
+                                                        >
+                                                            {expandedRows[dish.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                                        </button>
+                                                    </td>
+                                                    <td className="px-4 py-3 font-medium text-zinc-900">
+                                                        <Link href={`/dishes/${dish.id}`} className="flex items-center gap-3 hover:text-blue-600 transition-colors">
+                                                            <div className="h-8 w-8 rounded bg-zinc-100 flex items-center justify-center text-zinc-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                                                                <ChefHat className="h-4 w-4" />
+                                                            </div>
+                                                            {dish.name}
+                                                        </Link>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-zinc-500 capitalize">{dish.category.replace('_', ' ')}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className={`flex items-center gap-1.5 text-xs font-medium ${dish.isVeg ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                            <div className={`w-1.5 h-1.5 rounded-full ${dish.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                                            {dish.isVeg ? 'Veg' : 'Non-Veg'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-zinc-600">₹{dish.estimatedCostPerPlate}</td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <a href={`/dishes/${dish.id}`} className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="View Details">
+                                                                <ArrowRight className="h-4 w-4" />
+                                                            </a>
+                                                            <button
+                                                                onClick={() => router.push(`/dishes/${dish.id}/edit`)}
+                                                                className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded"
+                                                                title="Edit"
+                                                            >
+                                                                <Edit className="h-4 w-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(dish.id, dish.name)}
+                                                                className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                                title="Delete"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {expandedRows[dish.id] && (
+                                                    <tr key={`${dish.id}-expanded`} className="bg-zinc-50/50 border-b border-zinc-100 last:border-0">
+                                                        <td colSpan={6} className="px-4 py-6 text-sm">
+                                                            <div className="max-w-3xl ml-10">
+                                                                <h4 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                                                                    <PackageOpen className="w-4 h-4 text-zinc-400" />
+                                                                    Ingredients & Cost Breakdown
+                                                                </h4>
+                                                                {dish.ingredients && dish.ingredients.length > 0 ? (
+                                                                    <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+                                                                        <table className="w-full text-left">
+                                                                            <thead className="bg-zinc-50 border-b border-zinc-100">
+                                                                                <tr>
+                                                                                    <th className="px-4 py-2 font-medium text-zinc-500 text-xs uppercase tracking-wider">Item</th>
+                                                                                    <th className="px-4 py-2 font-medium text-zinc-500 text-xs uppercase tracking-wider text-right">Quantity</th>
+                                                                                    <th className="px-4 py-2 font-medium text-zinc-500 text-xs uppercase tracking-wider text-right">Unit Price</th>
+                                                                                    <th className="px-4 py-2 font-medium text-zinc-500 text-xs uppercase tracking-wider text-right">Total</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody className="divide-y divide-zinc-100">
+                                                                                {dish.ingredients.map((ing: any, i: number) => {
+                                                                                    const isGlobal = !!ing.ingredientId;
+                                                                                    const priceSource = isGlobal ? ing.ingredient?.pricePerUnit : 0;
+                                                                                    const cost = isGlobal
+                                                                                        ? calculateIngredientCost(Number(ing.quantity), ing.unit, Number(priceSource), ing.ingredient?.unit || ing.unit)
+                                                                                        : 0;
+                                                                                    return (
+                                                                                        <tr key={i}>
+                                                                                            <td className="px-4 py-2 text-zinc-900">
+                                                                                                {ing.ingredientName}
+                                                                                            </td>
+                                                                                            <td className="px-4 py-2 text-zinc-600 text-right">{ing.quantity} {ing.unit}</td>
+                                                                                            <td className="px-4 py-2 text-zinc-600 text-right">
+                                                                                                {isGlobal ? `₹${priceSource}` : '-'}
+                                                                                            </td>
+                                                                                            <td className="px-4 py-2 text-zinc-900 font-medium text-right">
+                                                                                                {cost > 0 ? `₹${cost.toFixed(2)}` : '-'}
+                                                                                            </td>
+                                                                                        </tr>
+                                                                                    );
+                                                                                })}
+                                                                                <tr className="bg-zinc-50 font-medium border-t-2 border-zinc-100">
+                                                                                    <td colSpan={3} className="px-4 py-3 text-right text-zinc-700">Calculated Cost Per Plate:</td>
+                                                                                    <td className="px-4 py-3 text-right text-zinc-900 border-l border-zinc-100">₹{dish.estimatedCostPerPlate}</td>
+                                                                                </tr>
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="text-zinc-500 bg-white border border-zinc-200 rounded-lg p-4 text-center">
+                                                                        No ingredients documented for this dish.
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                            {filteredDishes.length === 0 && (
+                                <div className="p-8 text-center text-zinc-500">
+                                    No dishes found matching your search.
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Bulk Upload Modal */}

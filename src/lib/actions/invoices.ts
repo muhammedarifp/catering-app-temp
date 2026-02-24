@@ -22,9 +22,7 @@ function serializeInvoice(invoice: any): any {
         pricePerPlate: Number(d.pricePerPlate),
         dish: d.dish ? {
           ...d.dish,
-          pricePerPlate: Number(d.dish.pricePerPlate),
           estimatedCostPerPlate: Number(d.dish.estimatedCostPerPlate),
-          sellingPricePerPlate: Number(d.dish.sellingPricePerPlate),
         } : undefined,
       })),
       services: invoice.event.services?.map((s: any) => ({
@@ -67,9 +65,7 @@ export async function getEventForInvoice(eventId: string) {
           pricePerPlate: Number(d.pricePerPlate),
           dish: {
             ...d.dish,
-            pricePerPlate: Number(d.dish.pricePerPlate),
             estimatedCostPerPlate: Number(d.dish.estimatedCostPerPlate),
-            sellingPricePerPlate: Number(d.dish.sellingPricePerPlate),
           },
         })),
         services: event.services.map(s => ({ ...s, price: Number(s.price) })),

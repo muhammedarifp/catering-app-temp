@@ -45,6 +45,9 @@ export async function getTodos(isCompleted?: boolean) {
       },
       orderBy: [
         {
+          orderIndex: 'asc',
+        },
+        {
           isCompleted: 'asc',
         },
         {
@@ -112,5 +115,25 @@ export async function deleteTodo(id: string) {
   } catch (error) {
     console.error('Failed to delete todo:', error)
     return { success: false, error: 'Failed to delete todo' }
+  }
+}
+
+export async function reorderTodos(updates: { id: string; orderIndex: number }[]) {
+  try {
+    // Run updates in a transaction to ensure all succeed or none do
+    await prisma.$transaction(
+      updates.map(({ id, orderIndex }) =>
+        prisma.todo.update({
+          where: { id },
+          data: { orderIndex },
+        })
+      )
+    )
+
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to reorder todos:', error)
+    return { success: false, error: 'Failed to reorder todos' }
   }
 }

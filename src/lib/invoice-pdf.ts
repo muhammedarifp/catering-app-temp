@@ -279,8 +279,8 @@ function generateProInvoiceHTML(data: InvoiceData): string {
     <div style="flex:1;padding:24px 28px;background:#f8fafc;display:flex;align-items:center">
       <div style="font-size:12px;${isPaid ? 'color:#15803d' : 'color:#92400e'};font-weight:600;line-height:1.5">
         ${isPaid
-          ? '✓ This invoice has been<br/>fully settled. Thank you!'
-          : 'Payment is pending.<br/>Please settle at your earliest.'}
+      ? '✓ This invoice has been<br/>fully settled. Thank you!'
+      : 'Payment is pending.<br/>Please settle at your earliest.'}
       </div>
     </div>
     <!-- Summary right -->
@@ -338,6 +338,7 @@ export function downloadInvoice(invoiceData: InvoiceData, type: 'standard' | 'pr
 // ── Menu (Quotation Menu) ─────────────────────────────────────────────────────
 
 interface MenuData {
+  status?: string
   quotationNumber: string
   clientName: string
   clientContact: string
@@ -347,10 +348,16 @@ interface MenuData {
   peopleCount: number
   occasion?: string      // e.g. "NIKKAH", "WEDDING", "BIRTHDAY"
   serviceType?: string   // e.g. "BOX COUNTER", "BUFFET"
+  includeSubItems?: boolean
   dishes: Array<{
     quantity: number
     pricePerPlate: DecimalLike
-    dish: { name: string; description?: string | null; category?: string }
+    dish: {
+      name: string;
+      description?: string | null;
+      category?: string;
+      ingredients?: Array<{ ingredientName: string; quantity: string | number; unit: string }>;
+    }
   }>
   services: Array<{
     serviceName: string
@@ -369,12 +376,14 @@ function fmtMenuDate(d: Date | string): string {
 }
 
 function generateMenuHTML(data: MenuData): string {
+  const showPricing = data.status !== 'PENDING'
+
   // Group dishes by category (preserving insertion order)
-  const groups: Map<string, string[]> = new Map()
+  const groups: Map<string, any[]> = new Map()
   for (const d of data.dishes) {
     const cat = (d.dish?.category || 'Others').toUpperCase()
     if (!groups.has(cat)) groups.set(cat, [])
-    groups.get(cat)!.push(d.dish?.name || '—')
+    groups.get(cat)!.push(d)
   }
 
   const menuSections = Array.from(groups.entries()).map(([category, items]) => `
@@ -386,26 +395,74 @@ function generateMenuHTML(data: MenuData): string {
       </div>
       <div style="padding-left:13px">
         ${items.map(item => `
-          <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f8fafc">
-            <div style="width:5px;height:5px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
-            <div style="font-size:13px;color:#1a1a1a;font-weight:500">${item}</div>
-          </div>`).join('')}
+          <div style="padding:6px 0;border-bottom:1px solid #f8fafc;display:flex;justify-content:space-between;">
+            <div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:5px;height:5px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+                <div style="font-size:13px;color:#1a1a1a;font-weight:500">${item.dish?.name || '—'}</div>
+              </div>
+              ${data.includeSubItems && item.dish?.ingredients && item.dish.ingredients.length > 0 ? `
+                <div style="padding-left:15px;margin-top:4px;">
+                  ${item.dish.ingredients.map((ing: any) => `
+                    <div style="font-size:11px;color:#64748b;margin-bottom:2px">
+                      • ${ing.ingredientName}
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+            ${showPricing ? `
+              <div style="text-align:right;">
+                <span style="font-size:12px;color:#0f172a;font-weight:600">₹${Number(item.pricePerPlate).toFixed(2)}</span>
+                <div style="font-size:10px;color:#64748b;margin-top:2px">${item.quantity} plates</div>
+                <div style="font-size:11px;color:#94a3b8;font-weight:600;margin-top:2px">₹${(Number(item.pricePerPlate) * Number(item.quantity)).toFixed(2)}</div>
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
       </div>
     </div>
   `).join('')
 
   const benefitsSection = data.services.length > 0 ? `
     <div style="background:#f8fafc;border-radius:10px;padding:18px 20px;margin-top:24px;border-left:3px solid #1e293b">
-      <div style="font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#1e293b;margin-bottom:12px">Customer Benefits</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <div style="font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#1e293b;margin-bottom:12px">Included Services</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
         ${data.services.map(s => `
-          <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e2e8f0;border-radius:100px;padding:5px 14px">
-            <span style="color:#f59e0b;font-size:12px;font-weight:800">✓</span>
-            <span style="font-size:12px;color:#374151;font-weight:500">${s.serviceName}${s.description ? ` <span style="color:#94a3b8;font-size:11px">(${s.description})</span>` : ''}</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="color:#f59e0b;font-size:12px;font-weight:800">✓</span>
+              <span style="font-size:12px;color:#374151;font-weight:500">${s.serviceName}${s.description ? ` <span style="color:#94a3b8;font-size:11px">(${s.description})</span>` : ''}</span>
+            </div>
+            ${showPricing && (s as any).price ? `<span style="font-size:12px;font-weight:600;color:#0f172a">₹${Number((s as any).price).toFixed(2)}</span>` : ''}
           </div>`).join('')}
       </div>
     </div>
   ` : ''
+
+  const totalsSection = showPricing ? `
+    <div style="margin-top:24px;padding:20px;border-top:1px dashed #cbd5e1;background:#fff">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;color:#64748b;">
+        <span>Dishes Subtotal:</span>
+        <span>₹${data.dishes.reduce((sum, d) => sum + (Number(d.pricePerPlate) * Number(d.quantity)), 0).toLocaleString()}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-size:13px;color:#64748b;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
+        <span>Services Subtotal:</span>
+        <span>₹${data.services.reduce((sum, s) => sum + Number((s as any).price || 0), 0).toLocaleString()}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:#0f172a;">
+        <span>Estimated Total:</span>
+        <span style="color:#10b981;">₹${(
+      data.dishes.reduce((sum, d) => sum + (Number(d.pricePerPlate) * Number(d.quantity)), 0) +
+      data.services.reduce((sum, s) => sum + Number((s as any).price || 0), 0)
+    ).toLocaleString()}</span>
+      </div>
+    </div>
+  ` : `
+    <div style="margin-top:24px;padding:16px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;text-align:center;font-size:12px;color:#64748b;">
+      Prices will be finalized and displayed upon quotation approval.
+    </div>
+  `
 
   const infoItems = [
     { label: 'Client', value: data.clientName },
@@ -437,7 +494,6 @@ function generateMenuHTML(data: MenuData): string {
     html{height:100%}
     body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#fff;color:#1a1a1a;-webkit-print-color-adjust:exact;print-color-adjust:exact;display:flex;flex-direction:column;min-height:100vh}
     .main-content{flex:1}
-    .footer-bar{background:#0f172a;padding:16px 56px;display:flex;justify-content:space-between;align-items:center}
     @media print{body{min-height:100vh}}
   </style>
 </head>
@@ -494,14 +550,17 @@ function generateMenuHTML(data: MenuData): string {
       <!-- Customer Benefits -->
       ${benefitsSection}
 
+      <!-- Totals -->
+      ${totalsSection}
+
     </div>
 
   </div>
 
   <!-- Footer -->
-  <div style="border-top:1px solid #e5e7eb;padding-top:18px;display:flex;justify-content:space-between;align-items:center">
+  <div style="border-top:1px solid #e5e7eb;padding-top:18px;display:flex;justify-content:space-between;align-items:center;margin: 0 56px 20px;">
     <span style="font-size:12.5px;font-weight:700;color:#111827">Thank you for choosing CaterPro!</span>
-    <span style="font-size:10px;color:#9ca3af">${fmtDate(new Date())}</span>
+    <span style="font-size:10px;color:#9ca3af">${fmtMenuDate(new Date())}</span>
   </div>
 
 </body>
