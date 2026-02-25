@@ -189,9 +189,7 @@ export async function bulkUploadDishes(dishes: Array<{
             name: dish.name,
             description: dish.description,
             category: dish.category,
-            pricePerPlate: dish.sellingPricePerPlate || dish.pricePerPlate || 0,
             estimatedCostPerPlate: dish.estimatedCostPerPlate || 0,
-            sellingPricePerPlate: dish.sellingPricePerPlate || dish.pricePerPlate || 0,
             isVeg: dish.isVeg ?? true,
             ingredients: dish.ingredients
               ? {
