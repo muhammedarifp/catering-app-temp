@@ -31,24 +31,51 @@ export const eventsTemplate = [
 ]
 
 // Dishes Template
+// Price Unit options: per plate, per kg, per L, per ml, per item
 export const dishesTemplate = [
   {
     'Dish Name': 'Butter Chicken',
     'Description': 'Creamy tomato-based curry',
     'Category': 'Main Course',
-    'Price Per Plate': 250,
+    'Price Unit': 'per plate',
+    'Cost Price': 120,
+    'Selling Price': 250,
     'Ingredients (comma separated)': 'Chicken, Butter, Tomato, Cream, Spices',
-    'Quantities (comma separated)': '500g, 50g, 200g, 100ml, 50g',
-    'Units (comma separated)': 'grams, grams, grams, ml, grams',
+    'Quantities (comma separated)': '500, 50, 200, 100, 50',
+    'Units (comma separated)': 'g, g, g, ml, g',
   },
   {
-    'Dish Name': 'Dal Makhani',
-    'Description': 'Black lentils in rich gravy',
+    'Dish Name': 'Basmati Rice',
+    'Description': 'Long-grain basmati rice',
     'Category': 'Main Course',
-    'Price Per Plate': 180,
-    'Ingredients (comma separated)': 'Black Lentils, Butter, Cream, Spices',
-    'Quantities (comma separated)': '300g, 30g, 50ml, 30g',
-    'Units (comma separated)': 'grams, grams, ml, grams',
+    'Price Unit': 'per kg',
+    'Cost Price': 80,
+    'Selling Price': 150,
+    'Ingredients (comma separated)': 'Basmati Rice, Water, Salt',
+    'Quantities (comma separated)': '1, 2, 10',
+    'Units (comma separated)': 'kg, l, g',
+  },
+  {
+    'Dish Name': 'Payasam',
+    'Description': 'Traditional milk dessert',
+    'Category': 'Desserts',
+    'Price Unit': 'per L',
+    'Cost Price': 60,
+    'Selling Price': 120,
+    'Ingredients (comma separated)': 'Milk, Sugar, Vermicelli',
+    'Quantities (comma separated)': '1, 200, 100',
+    'Units (comma separated)': 'l, g, g',
+  },
+  {
+    'Dish Name': 'Mineral Water Bottle',
+    'Description': '500ml packaged drinking water',
+    'Category': 'Drinks',
+    'Price Unit': 'per item',
+    'Cost Price': 10,
+    'Selling Price': 20,
+    'Ingredients (comma separated)': '',
+    'Quantities (comma separated)': '',
+    'Units (comma separated)': '',
   },
 ]
 
@@ -191,9 +218,11 @@ export function validateEventsData(data: any[]): { valid: boolean; errors: strin
   return { valid: errors.length === 0, errors }
 }
 
+const VALID_PRICE_UNITS = ['per plate', 'per kg', 'per L', 'per ml', 'per item']
+
 export function validateDishesData(data: any[]): { valid: boolean; errors: string[] } {
   const errors: string[] = []
-  const requiredFields = ['Dish Name', 'Category', 'Price Per Plate']
+  const requiredFields = ['Dish Name', 'Category']
 
   data.forEach((row, index) => {
     requiredFields.forEach((field) => {
@@ -202,23 +231,31 @@ export function validateDishesData(data: any[]): { valid: boolean; errors: strin
       }
     })
 
-    // Validate price
-    if (row['Price Per Plate'] && isNaN(Number(row['Price Per Plate']))) {
-      errors.push(`Row ${index + 2}: Price Per Plate must be a number`)
+    // Validate price unit
+    if (row['Price Unit'] && !VALID_PRICE_UNITS.includes(row['Price Unit'])) {
+      errors.push(`Row ${index + 2}: Invalid Price Unit. Must be one of: ${VALID_PRICE_UNITS.join(', ')}`)
     }
 
-    // Validate ingredients consistency
+    // Validate prices
+    if (row['Cost Price'] && isNaN(Number(row['Cost Price']))) {
+      errors.push(`Row ${index + 2}: Cost Price must be a number`)
+    }
+    if (row['Selling Price'] && isNaN(Number(row['Selling Price']))) {
+      errors.push(`Row ${index + 2}: Selling Price must be a number`)
+    }
+
+    // Validate ingredients consistency (only if any ingredient column is filled)
     const ingredients = row['Ingredients (comma separated)']
-      ? row['Ingredients (comma separated)'].split(',')
+      ? row['Ingredients (comma separated)'].split(',').map((s: string) => s.trim()).filter(Boolean)
       : []
     const quantities = row['Quantities (comma separated)']
-      ? row['Quantities (comma separated)'].split(',')
+      ? row['Quantities (comma separated)'].split(',').map((s: string) => s.trim()).filter(Boolean)
       : []
     const units = row['Units (comma separated)']
-      ? row['Units (comma separated)'].split(',')
+      ? row['Units (comma separated)'].split(',').map((s: string) => s.trim()).filter(Boolean)
       : []
 
-    if (ingredients.length !== quantities.length || ingredients.length !== units.length) {
+    if (ingredients.length > 0 && (ingredients.length !== quantities.length || ingredients.length !== units.length)) {
       errors.push(
         `Row ${index + 2}: Ingredients, Quantities, and Units must have the same number of items`
       )
@@ -297,25 +334,27 @@ export function downloadGroceryList(events: any[]) {
 
 export function transformDishesDataForUpload(data: any[]) {
   return data.map((row) => {
-    const ingredients = row['Ingredients (comma separated)']
-      ? row['Ingredients (comma separated)'].split(',').map((i: string) => i.trim())
+    const ingredientNames = row['Ingredients (comma separated)']
+      ? row['Ingredients (comma separated)'].split(',').map((i: string) => i.trim()).filter(Boolean)
       : []
     const quantities = row['Quantities (comma separated)']
       ? row['Quantities (comma separated)'].split(',').map((q: string) => parseFloat(q.trim()))
       : []
     const units = row['Units (comma separated)']
-      ? row['Units (comma separated)'].split(',').map((u: string) => u.trim())
+      ? row['Units (comma separated)'].split(',').map((u: string) => u.trim()).filter(Boolean)
       : []
 
     return {
       name: row['Dish Name'],
       description: row['Description'] || '',
       category: row['Category'],
-      pricePerPlate: Number(row['Price Per Plate']),
-      ingredients: ingredients.map((ing: string, idx: number) => ({
+      pricePerPlate: row['Cost Price'] ? Number(row['Cost Price']) : 0,
+      priceUnit: row['Price Unit'] || 'per plate',
+      sellingPricePerPlate: row['Selling Price'] ? Number(row['Selling Price']) : 0,
+      ingredients: ingredientNames.map((ing: string, idx: number) => ({
         ingredientName: ing,
         quantity: quantities[idx] || 0,
-        unit: units[idx] || '',
+        unit: units[idx] || 'g',
       })),
     }
   })

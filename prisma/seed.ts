@@ -74,7 +74,7 @@ async function main() {
       name: 'Fresh Fruits Juice Live (5 Types)',
       description: 'Live fresh fruit juice counter with 5 seasonal varieties',
       category: 'Welcome Drink',
-      pricePerPlate: 80, estimatedCostPerPlate: 35, sellingPricePerPlate: 80, isVeg: true,
+      priceUnit: 'per plate', pricePerPlate: 40, estimatedCostPerPlate: 40, sellingPricePerPlate: 85, isVeg: true,
       ingredients: [
         { ingredientName: 'Mixed Seasonal Fruits', quantity: 300, unit: 'g' },
         { ingredientName: 'Sugar', quantity: 20, unit: 'g' },
@@ -85,7 +85,7 @@ async function main() {
       name: 'Tender Coconut Water (Elaneer)',
       description: 'Fresh tender coconut served chilled',
       category: 'Welcome Drink',
-      pricePerPlate: 60, estimatedCostPerPlate: 30, sellingPricePerPlate: 60, isVeg: true,
+      priceUnit: 'per item', pricePerPlate: 40, estimatedCostPerPlate: 40, sellingPricePerPlate: 70, isVeg: true,
       ingredients: [
         { ingredientName: 'Tender Coconut', quantity: 1, unit: 'piece' },
       ],
@@ -96,7 +96,7 @@ async function main() {
       name: 'Ginger Tea',
       description: 'Hot tea brewed with fresh ginger',
       category: 'Herbal Tea',
-      pricePerPlate: 25, estimatedCostPerPlate: 8, sellingPricePerPlate: 25, isVeg: true,
+      priceUnit: 'per plate', pricePerPlate: 10, estimatedCostPerPlate: 10, sellingPricePerPlate: 25, isVeg: true,
       ingredients: [
         { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
         { ingredientName: 'Fresh Ginger', quantity: 5, unit: 'g' },
@@ -108,7 +108,7 @@ async function main() {
       name: 'Mint Tea',
       description: 'Refreshing hot tea with fresh mint leaves',
       category: 'Herbal Tea',
-      pricePerPlate: 25, estimatedCostPerPlate: 7, sellingPricePerPlate: 25, isVeg: true,
+      priceUnit: 'per plate', pricePerPlate: 8, estimatedCostPerPlate: 8, sellingPricePerPlate: 25, isVeg: true,
       ingredients: [
         { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
         { ingredientName: 'Fresh Mint Leaves', quantity: 8, unit: 'g' },
@@ -120,7 +120,7 @@ async function main() {
       name: 'Lime Tea',
       description: 'Hot black tea with fresh lime juice',
       category: 'Herbal Tea',
-      pricePerPlate: 25, estimatedCostPerPlate: 6, sellingPricePerPlate: 25, isVeg: true,
+      priceUnit: 'per plate', pricePerPlate: 8, estimatedCostPerPlate: 8, sellingPricePerPlate: 25, isVeg: true,
       ingredients: [
         { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
         { ingredientName: 'Lime Juice', quantity: 10, unit: 'ml' },
@@ -132,7 +132,7 @@ async function main() {
       name: 'Green Tea',
       description: 'Healthy green tea served hot',
       category: 'Herbal Tea',
-      pricePerPlate: 30, estimatedCostPerPlate: 10, sellingPricePerPlate: 30, isVeg: true,
+      priceUnit: 'per plate', pricePerPlate: 12, estimatedCostPerPlate: 12, sellingPricePerPlate: 30, isVeg: true,
       ingredients: [
         { ingredientName: 'Green Tea Leaves', quantity: 2, unit: 'g' },
         { ingredientName: 'Water', quantity: 200, unit: 'ml' },
@@ -143,7 +143,7 @@ async function main() {
       name: 'Cinnamon Tea',
       description: 'Fragrant hot tea infused with cinnamon sticks',
       category: 'Herbal Tea',
-      pricePerPlate: 30, estimatedCostPerPlate: 9, sellingPricePerPlate: 30, isVeg: true,
+      priceUnit: 'per plate', pricePerPlate: 10, estimatedCostPerPlate: 10, sellingPricePerPlate: 30, isVeg: true,
       ingredients: [
         { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
         { ingredientName: 'Cinnamon Stick', quantity: 1, unit: 'piece' },
@@ -155,7 +155,7 @@ async function main() {
       name: 'Cardamom Tea',
       description: 'Aromatic tea with crushed cardamom pods',
       category: 'Herbal Tea',
-      pricePerPlate: 25, estimatedCostPerPlate: 8, sellingPricePerPlate: 25, isVeg: true,
+      priceUnit: 'per plate', pricePerPlate: 10, estimatedCostPerPlate: 10, sellingPricePerPlate: 25, isVeg: true,
       ingredients: [
         { ingredientName: 'Tea Leaves', quantity: 3, unit: 'g' },
         { ingredientName: 'Cardamom Pods', quantity: 2, unit: 'piece' },
@@ -169,7 +169,7 @@ async function main() {
       name: 'Beef Biriyani',
       description: 'Slow-cooked Kerala style beef biriyani with fragrant Kaima rice',
       category: 'Main Course',
-      pricePerPlate: 280, estimatedCostPerPlate: 140, sellingPricePerPlate: 280, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 160, estimatedCostPerPlate: 160, sellingPricePerPlate: 320, isVeg: false,
       ingredients: [
         { ingredientName: 'Kaima Rice', quantity: 200, unit: 'g' },
         { ingredientName: 'Beef', quantity: 200, unit: 'g' },
@@ -186,7 +186,7 @@ async function main() {
       name: 'Chicken Kabiri',
       description: 'Traditional Kerala Kabiri rice with tender chicken pieces and spices',
       category: 'Main Course',
-      pricePerPlate: 250, estimatedCostPerPlate: 120, sellingPricePerPlate: 250, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 130, estimatedCostPerPlate: 130, sellingPricePerPlate: 260, isVeg: false,
       ingredients: [
         { ingredientName: 'Kaima Rice', quantity: 180, unit: 'g' },
         { ingredientName: 'Chicken', quantity: 200, unit: 'g' },
@@ -201,7 +201,7 @@ async function main() {
       name: 'Mutton Biriyani',
       description: 'Rich and aromatic mutton biriyani Kerala style',
       category: 'Main Course',
-      pricePerPlate: 320, estimatedCostPerPlate: 165, sellingPricePerPlate: 320, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 220, estimatedCostPerPlate: 220, sellingPricePerPlate: 450, isVeg: false,
       ingredients: [
         { ingredientName: 'Kaima Rice', quantity: 200, unit: 'g' },
         { ingredientName: 'Mutton', quantity: 220, unit: 'g' },
@@ -219,7 +219,7 @@ async function main() {
       name: 'Chicken Fry',
       description: 'Crispy Kerala style deep fried chicken with spiced marinade',
       category: 'Fry',
-      pricePerPlate: 160, estimatedCostPerPlate: 80, sellingPricePerPlate: 160, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 250, estimatedCostPerPlate: 250, sellingPricePerPlate: 450, isVeg: false,
       ingredients: [
         { ingredientName: 'Chicken', quantity: 200, unit: 'g' },
         { ingredientName: 'Red Chilli Powder', quantity: 2, unit: 'tsp' },
@@ -233,7 +233,7 @@ async function main() {
       name: 'Beef Varattu',
       description: 'Dry roasted beef cooked with coconut and whole spices',
       category: 'Fry',
-      pricePerPlate: 180, estimatedCostPerPlate: 90, sellingPricePerPlate: 180, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 300, estimatedCostPerPlate: 300, sellingPricePerPlate: 550, isVeg: false,
       ingredients: [
         { ingredientName: 'Beef', quantity: 200, unit: 'g' },
         { ingredientName: 'Grated Coconut', quantity: 50, unit: 'g' },
@@ -247,7 +247,7 @@ async function main() {
       name: 'Fish Fry',
       description: 'Coastal Kerala style marinated fish deep fried crispy',
       category: 'Fry',
-      pricePerPlate: 200, estimatedCostPerPlate: 100, sellingPricePerPlate: 200, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 240, estimatedCostPerPlate: 240, sellingPricePerPlate: 440, isVeg: false,
       ingredients: [
         { ingredientName: 'Fish (Seer/King Fish)', quantity: 200, unit: 'g' },
         { ingredientName: 'Red Chilli Powder', quantity: 2, unit: 'tsp' },
@@ -262,7 +262,7 @@ async function main() {
       name: 'Raita',
       description: 'Creamy yogurt with cucumber, cumin and coriander',
       category: 'Salads',
-      pricePerPlate: 40, estimatedCostPerPlate: 12, sellingPricePerPlate: 40, isVeg: true,
+      priceUnit: 'per kg', pricePerPlate: 60, estimatedCostPerPlate: 60, sellingPricePerPlate: 130, isVeg: true,
       ingredients: [
         { ingredientName: 'Curd (Yogurt)', quantity: 100, unit: 'g' },
         { ingredientName: 'Cucumber', quantity: 40, unit: 'g' },
@@ -275,7 +275,7 @@ async function main() {
       name: 'Pickle (Achar)',
       description: 'Assorted Kerala homestyle pickles',
       category: 'Salads',
-      pricePerPlate: 20, estimatedCostPerPlate: 6, sellingPricePerPlate: 20, isVeg: true,
+      priceUnit: 'per kg', pricePerPlate: 100, estimatedCostPerPlate: 100, sellingPricePerPlate: 220, isVeg: true,
       ingredients: [
         { ingredientName: 'Mango Pickle', quantity: 20, unit: 'g' },
         { ingredientName: 'Lime Pickle', quantity: 10, unit: 'g' },
@@ -287,7 +287,7 @@ async function main() {
       name: 'Sambar',
       description: 'Traditional South Indian lentil stew with vegetables and tamarind',
       category: 'Veg',
-      pricePerPlate: 50, estimatedCostPerPlate: 18, sellingPricePerPlate: 50, isVeg: true,
+      priceUnit: 'per L', pricePerPlate: 55, estimatedCostPerPlate: 55, sellingPricePerPlate: 120, isVeg: true,
       ingredients: [
         { ingredientName: 'Toor Dal', quantity: 80, unit: 'g' },
         { ingredientName: 'Tamarind', quantity: 10, unit: 'g' },
@@ -301,7 +301,7 @@ async function main() {
       name: 'Avial',
       description: 'Kerala mixed vegetable curry with coconut and yogurt',
       category: 'Veg',
-      pricePerPlate: 60, estimatedCostPerPlate: 22, sellingPricePerPlate: 60, isVeg: true,
+      priceUnit: 'per kg', pricePerPlate: 70, estimatedCostPerPlate: 70, sellingPricePerPlate: 150, isVeg: true,
       ingredients: [
         { ingredientName: 'Mixed Vegetables (Drumstick, Yam, Raw Banana)', quantity: 200, unit: 'g' },
         { ingredientName: 'Grated Coconut', quantity: 60, unit: 'g' },
@@ -314,7 +314,7 @@ async function main() {
       name: 'Thoran',
       description: 'Kerala stir-fried vegetables with fresh coconut and spices',
       category: 'Veg',
-      pricePerPlate: 45, estimatedCostPerPlate: 15, sellingPricePerPlate: 45, isVeg: true,
+      priceUnit: 'per kg', pricePerPlate: 50, estimatedCostPerPlate: 50, sellingPricePerPlate: 110, isVeg: true,
       ingredients: [
         { ingredientName: 'Cabbage / Beans / Carrot', quantity: 150, unit: 'g' },
         { ingredientName: 'Grated Coconut', quantity: 40, unit: 'g' },
@@ -327,7 +327,7 @@ async function main() {
       name: 'Koottucurry',
       description: 'Black chickpeas and yam cooked with freshly ground coconut masala',
       category: 'Veg',
-      pricePerPlate: 55, estimatedCostPerPlate: 20, sellingPricePerPlate: 55, isVeg: true,
+      priceUnit: 'per kg', pricePerPlate: 65, estimatedCostPerPlate: 65, sellingPricePerPlate: 140, isVeg: true,
       ingredients: [
         { ingredientName: 'Black Chickpeas (Kadala)', quantity: 80, unit: 'g' },
         { ingredientName: 'Elephant Yam', quantity: 100, unit: 'g' },
@@ -340,7 +340,7 @@ async function main() {
       name: 'Pappadam',
       description: 'Crispy roasted or fried Kerala pappadam',
       category: 'Veg',
-      pricePerPlate: 15, estimatedCostPerPlate: 4, sellingPricePerPlate: 15, isVeg: true,
+      priceUnit: 'per item', pricePerPlate: 3, estimatedCostPerPlate: 3, sellingPricePerPlate: 7, isVeg: true,
       ingredients: [
         { ingredientName: 'Pappadam', quantity: 2, unit: 'piece' },
         { ingredientName: 'Coconut Oil', quantity: 50, unit: 'ml' },
@@ -350,7 +350,7 @@ async function main() {
       name: 'Steamed Rice',
       description: 'Freshly steamed Kerala boiled rice',
       category: 'Veg',
-      pricePerPlate: 30, estimatedCostPerPlate: 10, sellingPricePerPlate: 30, isVeg: true,
+      priceUnit: 'per kg', pricePerPlate: 55, estimatedCostPerPlate: 55, sellingPricePerPlate: 110, isVeg: true,
       ingredients: [
         { ingredientName: 'Kerala Boiled Rice', quantity: 150, unit: 'g' },
         { ingredientName: 'Water', quantity: 400, unit: 'ml' },
@@ -363,7 +363,7 @@ async function main() {
       name: '500 ML Drinking Water',
       description: 'Sealed mineral water bottle 500ml',
       category: 'Drinks',
-      pricePerPlate: 20, estimatedCostPerPlate: 12, sellingPricePerPlate: 20, isVeg: true,
+      priceUnit: 'per item', pricePerPlate: 12, estimatedCostPerPlate: 12, sellingPricePerPlate: 20, isVeg: true,
       ingredients: [
         { ingredientName: 'Mineral Water Bottle 500ml', quantity: 1, unit: 'bottle' },
       ],
@@ -372,7 +372,7 @@ async function main() {
       name: 'Buttermilk (Moru)',
       description: 'Chilled spiced buttermilk with ginger and curry leaves',
       category: 'Drinks',
-      pricePerPlate: 25, estimatedCostPerPlate: 8, sellingPricePerPlate: 25, isVeg: true,
+      priceUnit: 'per L', pricePerPlate: 35, estimatedCostPerPlate: 35, sellingPricePerPlate: 70, isVeg: true,
       ingredients: [
         { ingredientName: 'Curd', quantity: 80, unit: 'ml' },
         { ingredientName: 'Water', quantity: 120, unit: 'ml' },
@@ -387,7 +387,7 @@ async function main() {
       name: 'Elaneer Payasam',
       description: 'Creamy tender coconut dessert with condensed milk and cardamom',
       category: 'Desserts',
-      pricePerPlate: 70, estimatedCostPerPlate: 30, sellingPricePerPlate: 70, isVeg: true,
+      priceUnit: 'per L', pricePerPlate: 90, estimatedCostPerPlate: 90, sellingPricePerPlate: 180, isVeg: true,
       ingredients: [
         { ingredientName: 'Tender Coconut Pulp', quantity: 80, unit: 'g' },
         { ingredientName: 'Coconut Milk', quantity: 100, unit: 'ml' },
@@ -400,7 +400,7 @@ async function main() {
       name: 'Luqaimat',
       description: 'Arabic sweet dumplings drizzled with date syrup and sesame seeds',
       category: 'Desserts',
-      pricePerPlate: 60, estimatedCostPerPlate: 22, sellingPricePerPlate: 60, isVeg: true,
+      priceUnit: 'per kg', pricePerPlate: 220, estimatedCostPerPlate: 220, sellingPricePerPlate: 450, isVeg: true,
       ingredients: [
         { ingredientName: 'Maida (All Purpose Flour)', quantity: 80, unit: 'g' },
         { ingredientName: 'Yeast', quantity: 2, unit: 'g' },
@@ -413,7 +413,7 @@ async function main() {
       name: 'Pan Cake',
       description: 'Soft fluffy pancakes served with honey or maple syrup',
       category: 'Desserts',
-      pricePerPlate: 50, estimatedCostPerPlate: 18, sellingPricePerPlate: 50, isVeg: true,
+      priceUnit: 'per item', pricePerPlate: 10, estimatedCostPerPlate: 10, sellingPricePerPlate: 25, isVeg: true,
       ingredients: [
         { ingredientName: 'Maida', quantity: 80, unit: 'g' },
         { ingredientName: 'Egg', quantity: 1, unit: 'piece' },
@@ -427,7 +427,7 @@ async function main() {
       name: 'Semiya Payasam',
       description: 'Sweet vermicelli kheer with cashews and raisins in rich milk',
       category: 'Desserts',
-      pricePerPlate: 55, estimatedCostPerPlate: 20, sellingPricePerPlate: 55, isVeg: true,
+      priceUnit: 'per L', pricePerPlate: 70, estimatedCostPerPlate: 70, sellingPricePerPlate: 150, isVeg: true,
       ingredients: [
         { ingredientName: 'Semiya (Vermicelli)', quantity: 50, unit: 'g' },
         { ingredientName: 'Milk', quantity: 250, unit: 'ml' },
@@ -444,7 +444,7 @@ async function main() {
       name: 'Kerala Porotta',
       description: 'Layered flaky flatbread made with maida — best with curries',
       category: 'Breads',
-      pricePerPlate: 35, estimatedCostPerPlate: 12, sellingPricePerPlate: 35, isVeg: true,
+      priceUnit: 'per item', pricePerPlate: 7, estimatedCostPerPlate: 7, sellingPricePerPlate: 15, isVeg: true,
       ingredients: [
         { ingredientName: 'Maida (All Purpose Flour)', quantity: 100, unit: 'g' },
         { ingredientName: 'Egg', quantity: 1, unit: 'piece' },
@@ -457,7 +457,7 @@ async function main() {
       name: 'Pathiri',
       description: 'Soft Kerala rice flour flatbread — traditional Malabar bread',
       category: 'Breads',
-      pricePerPlate: 30, estimatedCostPerPlate: 10, sellingPricePerPlate: 30, isVeg: true,
+      priceUnit: 'per item', pricePerPlate: 5, estimatedCostPerPlate: 5, sellingPricePerPlate: 12, isVeg: true,
       ingredients: [
         { ingredientName: 'Rice Flour', quantity: 100, unit: 'g' },
         { ingredientName: 'Water', quantity: 150, unit: 'ml' },
@@ -471,7 +471,7 @@ async function main() {
       name: 'Malabar Beef Curry',
       description: 'Rich Kerala beef curry with coconut milk and whole spices',
       category: 'Curry',
-      pricePerPlate: 140, estimatedCostPerPlate: 70, sellingPricePerPlate: 140, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 200, estimatedCostPerPlate: 200, sellingPricePerPlate: 380, isVeg: false,
       ingredients: [
         { ingredientName: 'Beef', quantity: 180, unit: 'g' },
         { ingredientName: 'Coconut Milk', quantity: 100, unit: 'ml' },
@@ -486,7 +486,7 @@ async function main() {
       name: 'Chicken Roast',
       description: 'Dry roasted Kerala chicken with shallots and fennel seeds',
       category: 'Curry',
-      pricePerPlate: 130, estimatedCostPerPlate: 60, sellingPricePerPlate: 130, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 220, estimatedCostPerPlate: 220, sellingPricePerPlate: 400, isVeg: false,
       ingredients: [
         { ingredientName: 'Chicken', quantity: 200, unit: 'g' },
         { ingredientName: 'Shallots', quantity: 80, unit: 'g' },
@@ -501,7 +501,7 @@ async function main() {
       name: 'Malabar Fish Curry',
       description: 'Tangy red fish curry with kudampuli (Gamboge) and coconut',
       category: 'Curry',
-      pricePerPlate: 150, estimatedCostPerPlate: 75, sellingPricePerPlate: 150, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 180, estimatedCostPerPlate: 180, sellingPricePerPlate: 350, isVeg: false,
       ingredients: [
         { ingredientName: 'Fish (Tilapia / Mackerel)', quantity: 180, unit: 'g' },
         { ingredientName: 'Kudampuli (Gamboge)', quantity: 2, unit: 'piece' },
@@ -517,7 +517,7 @@ async function main() {
       name: 'Prawn Biriyani',
       description: 'Aromatic Kaima rice biriyani cooked with tiger prawns and spices',
       category: 'Main Course',
-      pricePerPlate: 350, estimatedCostPerPlate: 180, sellingPricePerPlate: 350, isVeg: false,
+      priceUnit: 'per kg', pricePerPlate: 200, estimatedCostPerPlate: 200, sellingPricePerPlate: 420, isVeg: false,
       ingredients: [
         { ingredientName: 'Kaima Rice', quantity: 200, unit: 'g' },
         { ingredientName: 'Tiger Prawns', quantity: 180, unit: 'g' },
@@ -532,7 +532,7 @@ async function main() {
       name: 'Vegetable Dum Biriyani',
       description: 'Slow-cooked dum biriyani with seasonal vegetables and saffron',
       category: 'Main Course',
-      pricePerPlate: 180, estimatedCostPerPlate: 80, sellingPricePerPlate: 180, isVeg: true,
+      priceUnit: 'per kg', pricePerPlate: 70, estimatedCostPerPlate: 70, sellingPricePerPlate: 160, isVeg: true,
       ingredients: [
         { ingredientName: 'Basmati Rice', quantity: 200, unit: 'g' },
         { ingredientName: 'Mixed Vegetables', quantity: 200, unit: 'g' },
@@ -548,7 +548,7 @@ async function main() {
       name: 'Chicken Shawarma',
       description: 'Grilled marinated chicken wrapped in pita with garlic sauce',
       category: 'Starters',
-      pricePerPlate: 90, estimatedCostPerPlate: 40, sellingPricePerPlate: 90, isVeg: false,
+      priceUnit: 'per item', pricePerPlate: 50, estimatedCostPerPlate: 50, sellingPricePerPlate: 100, isVeg: false,
       ingredients: [
         { ingredientName: 'Chicken Breast', quantity: 120, unit: 'g' },
         { ingredientName: 'Pita Bread', quantity: 1, unit: 'piece' },
@@ -562,7 +562,7 @@ async function main() {
       name: 'Vegetable Samosa',
       description: 'Crispy pastry filled with spiced potato and peas — 2 pcs',
       category: 'Starters',
-      pricePerPlate: 40, estimatedCostPerPlate: 14, sellingPricePerPlate: 40, isVeg: true,
+      priceUnit: 'per item', pricePerPlate: 10, estimatedCostPerPlate: 10, sellingPricePerPlate: 25, isVeg: true,
       ingredients: [
         { ingredientName: 'Maida', quantity: 60, unit: 'g' },
         { ingredientName: 'Potato', quantity: 80, unit: 'g' },

@@ -34,6 +34,9 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
         category: initialData?.category || 'Main Course',
         isVeg: initialData?.isVeg !== undefined ? initialData.isVeg : true,
         imageUrl: initialData?.imageUrl || '',
+        pricePerPlate: initialData?.pricePerPlate !== undefined ? String(initialData.pricePerPlate) : '',
+        priceUnit: initialData?.priceUnit || 'per plate',
+        sellingPricePerPlate: initialData?.sellingPricePerPlate !== undefined ? String(initialData.sellingPricePerPlate) : '',
     });
 
     const [ingredients, setIngredients] = useState<Ingredient[]>(
@@ -41,14 +44,25 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
     );
 
     const categories = [
-        'Starter',
+        'Welcome Drink',
+        'Starters',
+        'Herbal Tea',
+        'Breads',
         'Main Course',
-        'Dessert',
-        'Bread',
-        'Rice',
-        'Salad',
-        'Beverage',
-        'Snack',
+        'Curry',
+        'Fry',
+        'Salads',
+        'Drinks',
+        'Desserts',
+        'Veg',
+    ];
+
+    const priceUnits = [
+        { value: 'per plate', label: 'Per Plate' },
+        { value: 'per kg',    label: 'Per Kg' },
+        { value: 'per L',     label: 'Per Litre (L)' },
+        { value: 'per ml',    label: 'Per ml' },
+        { value: 'per item',  label: 'Per Item (MRP)' },
     ];
 
     const units = ['kg', 'g', 'l', 'ml', 'piece', 'cup', 'tbsp', 'tsp'];
@@ -167,6 +181,9 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
                 category: formData.category,
                 isVeg: formData.isVeg,
                 imageUrl: formData.imageUrl || undefined,
+                pricePerPlate: formData.pricePerPlate ? parseFloat(formData.pricePerPlate) : 0,
+                priceUnit: formData.priceUnit,
+                sellingPricePerPlate: formData.sellingPricePerPlate ? parseFloat(formData.sellingPricePerPlate) : 0,
                 ingredients: finalIngredients.filter(ing => ing.ingredientName && ing.quantity > 0).map(ing => ({
                     ingredientName: ing.ingredientName,
                     quantity: ing.quantity,
@@ -315,6 +332,66 @@ export default function DishForm({ initialData, isEdit = false }: DishFormProps)
                 </div>
             </div>
 
+
+            {/* Pricing */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 space-y-4">
+                <h2 className="text-lg font-semibold text-slate-900">Pricing</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Price Unit
+                        </label>
+                        <select
+                            value={formData.priceUnit}
+                            onChange={(e) => setFormData({ ...formData, priceUnit: e.target.value })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                        >
+                            {priceUnits.map((u) => (
+                                <option key={u.value} value={u.value}>{u.label}</option>
+                            ))}
+                        </select>
+                        <p className="text-xs text-slate-500 mt-1">
+                            How this dish is priced (e.g. per kg for rice, per item for water bottle)
+                        </p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Cost Price <span className="text-slate-400 font-normal">({formData.priceUnit})</span>
+                        </label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">₹</span>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={formData.pricePerPlate}
+                                onChange={(e) => setFormData({ ...formData, pricePerPlate: e.target.value })}
+                                className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                                placeholder="0.00"
+                            />
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Your cost / buying price</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Selling Price <span className="text-slate-400 font-normal">({formData.priceUnit})</span>
+                        </label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">₹</span>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={formData.sellingPricePerPlate}
+                                onChange={(e) => setFormData({ ...formData, sellingPricePerPlate: e.target.value })}
+                                className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                                placeholder="0.00"
+                            />
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Price charged to client</p>
+                    </div>
+                </div>
+            </div>
 
             {/* Ingredients */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 space-y-4">

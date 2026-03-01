@@ -9,6 +9,9 @@ function serializeDish(dish: any): any {
   return {
     ...dish,
     estimatedCostPerPlate: Number(dish.estimatedCostPerPlate),
+    pricePerPlate: Number(dish.pricePerPlate ?? 0),
+    priceUnit: dish.priceUnit ?? 'per plate',
+    sellingPricePerPlate: Number(dish.sellingPricePerPlate ?? 0),
     ingredients: dish.ingredients?.map((ing: any) => ({
       ...ing,
       quantity: Number(ing.quantity),
@@ -21,6 +24,9 @@ export async function createDish(data: {
   description?: string
   category: string
   estimatedCostPerPlate?: number
+  pricePerPlate?: number
+  priceUnit?: string
+  sellingPricePerPlate?: number
   isVeg?: boolean
   ingredients: Array<{ ingredientName: string; quantity: number; unit: string; ingredientId?: string }>
   imageUrl?: string
@@ -32,6 +38,9 @@ export async function createDish(data: {
         description: data.description,
         category: data.category,
         estimatedCostPerPlate: data.estimatedCostPerPlate || 0,
+        pricePerPlate: data.pricePerPlate || 0,
+        priceUnit: data.priceUnit || 'per plate',
+        sellingPricePerPlate: data.sellingPricePerPlate || 0,
         isVeg: data.isVeg ?? true,
         imageUrl: data.imageUrl,
         ingredients: {
@@ -119,6 +128,9 @@ export async function updateDish(
     description?: string
     category?: string
     estimatedCostPerPlate?: number
+    pricePerPlate?: number
+    priceUnit?: string
+    sellingPricePerPlate?: number
     isVeg?: boolean
     imageUrl?: string
     isActive?: boolean
@@ -176,6 +188,7 @@ export async function bulkUploadDishes(dishes: Array<{
   description?: string
   category: string
   pricePerPlate?: number
+  priceUnit?: string
   estimatedCostPerPlate?: number
   sellingPricePerPlate?: number
   isVeg?: boolean
@@ -190,6 +203,9 @@ export async function bulkUploadDishes(dishes: Array<{
             description: dish.description,
             category: dish.category,
             estimatedCostPerPlate: dish.estimatedCostPerPlate || 0,
+            pricePerPlate: dish.pricePerPlate || 0,
+            priceUnit: dish.priceUnit || 'per plate',
+            sellingPricePerPlate: dish.sellingPricePerPlate || 0,
             isVeg: dish.isVeg ?? true,
             ingredients: dish.ingredients
               ? {

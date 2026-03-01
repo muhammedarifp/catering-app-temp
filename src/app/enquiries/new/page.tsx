@@ -21,6 +21,21 @@ interface ServiceItem {
     price: number
 }
 
+// Maps UI category labels → actual DB category strings
+const CATEGORY_DB_MAP: Record<string, string[]> = {
+    'WELCOME DRINK':  ['Welcome Drink'],
+    'STARTER & SOUPS': ['Starters'],
+    'TEA':            ['Herbal Tea'],
+    'BREADS':         ['Breads'],
+    'RICE':           ['Main Course'],
+    'CURRY & GRAVY':  ['Curry'],
+    'FRY & GRILLED':  ['Fry'],
+    'SALADS':         ['Salads'],
+    'DRINK':          ['Drinks'],
+    'DESSERT':        ['Desserts'],
+}
+const ALL_MAPPED_DB_CATEGORIES = Object.values(CATEGORY_DB_MAP).flat()
+
 export default function NewEnquiryPage() {
     const router = useRouter()
     const { user } = useAuth()
@@ -58,7 +73,7 @@ export default function NewEnquiryPage() {
                     dishId: dishes[0].id,
                     dishName: dishes[0].name,
                     quantity: parseInt(formData.peopleCount) || 1,
-                    pricePerPlate: Number(dishes[0].pricePerPlate),
+                    pricePerPlate: Number(dishes[0].sellingPricePerPlate || dishes[0].pricePerPlate),
                 },
             ])
         }
@@ -73,7 +88,7 @@ export default function NewEnquiryPage() {
                     ...updated[index],
                     dishId: value,
                     dishName: dish.name,
-                    pricePerPlate: Number(dish.pricePerPlate),
+                    pricePerPlate: Number(dish.sellingPricePerPlate || dish.pricePerPlate),
                 }
             }
         } else {
@@ -102,6 +117,10 @@ export default function NewEnquiryPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!formData.occasion) {
+            alert('Please select an Event Type')
+            return
+        }
         setLoading(true)
 
         try {
@@ -320,23 +339,20 @@ export default function NewEnquiryPage() {
                                 'WELCOME DRINK', 'STARTER & SOUPS', 'TEA', 'BREADS', 'RICE',
                                 'CURRY & GRAVY', 'FRY & GRILLED', 'SALADS', 'DRINK', 'DESSERT', 'OTHER'
                             ].map(category => {
-                                let categoryDishes = dishes.filter((d: any) =>
-                                    d.category?.toUpperCase() === category.replace(' & ', '_AND_').replace(' ', '_') ||
-                                    d.category?.toUpperCase() === category ||
-                                    d.category?.toUpperCase().includes(category.split(' ')[0])
-                                )
-
-                                if (categoryDishes.length === 0 && dishes.length > 0) {
-                                    categoryDishes = dishes;
-                                }
+                                const categoryDishes = dishes.filter((d: any) => {
+                                    if (category === 'OTHER') {
+                                        return !ALL_MAPPED_DB_CATEGORIES.includes(d.category)
+                                    }
+                                    return CATEGORY_DB_MAP[category]?.includes(d.category) ?? false
+                                })
 
                                 const selectedInCategory = selectedDishes.map((sd, i) => ({ ...sd, originalIndex: i })).filter(sd => {
                                     const originalDish = dishes.find((d: any) => d.id === sd.dishId)
-                                    const dCat = originalDish?.category?.toUpperCase().replace('_', ' ') || 'OTHER'
+                                    if (!originalDish) return false
                                     if (category === 'OTHER') {
-                                        return !['WELCOME DRINK', 'STARTER & SOUPS', 'TEA', 'BREADS', 'RICE', 'CURRY & GRAVY', 'FRY & GRILLED', 'SALADS', 'DRINK', 'DESSERT'].some(c => dCat.includes(c.split(' ')[0]))
+                                        return !ALL_MAPPED_DB_CATEGORIES.includes(originalDish.category)
                                     }
-                                    return dCat.includes(category.split(' ')[0])
+                                    return CATEGORY_DB_MAP[category]?.includes(originalDish.category) ?? false
                                 })
 
                                 return (
@@ -345,6 +361,7 @@ export default function NewEnquiryPage() {
                                             <h4 className="font-semibold text-slate-800">{category}</h4>
                                             <button
                                                 type="button"
+                                                disabled={categoryDishes.length === 0}
                                                 onClick={() => {
                                                     if (categoryDishes.length > 0) {
                                                         setSelectedDishes([
@@ -353,14 +370,12 @@ export default function NewEnquiryPage() {
                                                                 dishId: categoryDishes[0].id,
                                                                 dishName: categoryDishes[0].name,
                                                                 quantity: parseInt(formData.peopleCount) || 1,
-                                                                pricePerPlate: Number(categoryDishes[0].pricePerPlate),
+                                                                pricePerPlate: Number(categoryDishes[0].sellingPricePerPlate || categoryDishes[0].pricePerPlate),
                                                             },
                                                         ])
-                                                    } else if (dishes.length > 0) {
-                                                        handleAddDish() // Fallback
                                                     }
                                                 }}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium w-fit"
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium w-fit disabled:opacity-40 disabled:cursor-not-allowed"
                                             >
                                                 <Plus className="w-3.5 h-3.5" />
                                                 Add item
@@ -386,8 +401,8 @@ export default function NewEnquiryPage() {
                                                             type="number"
                                                             min="1"
                                                             value={dish.quantity}
-                                                            onChange={e => handleUpdateDish(dish.originalIndex, 'quantity', parseInt(e.target.value))}
-                                                            className="w-24 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 bg-slate-50 cursor-not-allowed"
+                                                            readOnly
+                                                            className="w-24 px-3 py-2 border border-slate-200 rounded-lg bg-slate-100 cursor-not-allowed select-none text-slate-500"
                                                             placeholder="Qty"
                                                             title="Quantity syncs with number of guests automatically"
                                                         />

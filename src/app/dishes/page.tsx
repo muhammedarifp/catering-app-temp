@@ -126,7 +126,7 @@ export default function DishesPage() {
                                         <th className="px-4 py-3 font-medium text-zinc-500">Dish Name</th>
                                         <th className="px-4 py-3 font-medium text-zinc-500">Category</th>
                                         <th className="px-4 py-3 font-medium text-zinc-500">Type</th>
-                                        <th className="px-4 py-3 font-medium text-zinc-500 text-right">Cost</th>
+                                        <th className="px-4 py-3 font-medium text-zinc-500 text-right">Cost / Sell Price</th>
                                         <th className="px-4 py-3 font-medium text-zinc-500 text-right">Actions</th>
                                     </tr>
                                 </thead>
@@ -158,7 +158,17 @@ export default function DishesPage() {
                                                             {dish.isVeg ? 'Veg' : 'Non-Veg'}
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 py-3 text-right text-zinc-600">₹{dish.estimatedCostPerPlate}</td>
+                                                    <td className="px-4 py-3 text-right text-zinc-600">
+                                                        <div className="flex flex-col items-end gap-0.5">
+                                                            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">{dish.priceUnit || 'per plate'}</span>
+                                                            <span className="font-medium">
+                                                                ₹{dish.pricePerPlate > 0 ? dish.pricePerPlate : dish.estimatedCostPerPlate}
+                                                                {dish.sellingPricePerPlate > 0 && dish.sellingPricePerPlate !== dish.pricePerPlate && (
+                                                                    <span className="text-emerald-600 ml-1.5">→ ₹{dish.sellingPricePerPlate}</span>
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    </td>
                                                     <td className="px-4 py-3 text-right">
                                                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <a href={`/dishes/${dish.id}`} className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="View Details">

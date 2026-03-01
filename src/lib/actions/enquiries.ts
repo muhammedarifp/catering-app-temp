@@ -122,6 +122,7 @@ export async function createEnquiry(data: {
     })
 
     revalidatePath('/')
+    revalidatePath('/enquiries')
     return { success: true, data: serializeEnquiry(enquiry) }
   } catch (error) {
     console.error('Failed to create enquiry:', error)
@@ -201,11 +202,15 @@ export async function updateEnquiryStatus(enquiryId: string, status: EnquiryStat
       })
 
       revalidatePath('/')
+      revalidatePath('/enquiries')
+      revalidatePath(`/enquiries/${enquiryId}`)
       revalidatePath('/events')
       return { success: true, data: serializeEnquiry(updatedEnquiry), event: { id: event.id } }
     }
 
     revalidatePath('/')
+    revalidatePath('/enquiries')
+    revalidatePath(`/enquiries/${enquiryId}`)
     return { success: true, data: serializeEnquiry(updatedEnquiry) }
   } catch (error) {
     console.error('Failed to update enquiry status:', error)
@@ -308,6 +313,8 @@ export async function addEnquiryUpdate(enquiryId: string, description: string, u
     })
 
     revalidatePath('/')
+    revalidatePath('/enquiries')
+    revalidatePath(`/enquiries/${enquiryId}`)
     return { success: true, data: { ...update } }
   } catch (error) {
     console.error('Failed to add enquiry update:', error)

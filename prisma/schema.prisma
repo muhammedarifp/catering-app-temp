@@ -225,6 +225,9 @@ model Dish {
   description             String?
   category                String   // e.g., "Appetizer", "Main Course", "Dessert"
   estimatedCostPerPlate   Decimal  @default(0)
+  pricePerPlate           Decimal  @default(0)
+  priceUnit               String   @default("per plate") // per plate, per kg, per L, per ml, per item
+  sellingPricePerPlate    Decimal  @default(0)
   isVeg                   Boolean  @default(true)
 
   // Image (optional)

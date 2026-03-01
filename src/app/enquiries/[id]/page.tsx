@@ -36,6 +36,20 @@ import { getDishes } from '@/lib/actions/dishes'
 import { useAuth } from '@/contexts/AuthContext'
 import { downloadMenu } from '@/lib/invoice-pdf'
 
+const DISH_CATEGORIES: { label: string; dbCategories: string[] }[] = [
+  { label: 'Welcome Drink', dbCategories: ['Welcome Drink'] },
+  { label: 'Starters',      dbCategories: ['Starters'] },
+  { label: 'Tea',           dbCategories: ['Herbal Tea'] },
+  { label: 'Breads',        dbCategories: ['Breads'] },
+  { label: 'Rice',          dbCategories: ['Main Course'] },
+  { label: 'Curry & Gravy', dbCategories: ['Curry'] },
+  { label: 'Fry & Grilled', dbCategories: ['Fry'] },
+  { label: 'Salads',        dbCategories: ['Salads'] },
+  { label: 'Drinks',        dbCategories: ['Drinks'] },
+  { label: 'Desserts',      dbCategories: ['Desserts'] },
+  { label: 'Other',         dbCategories: [] },
+]
+
 export default function EnquiryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -62,6 +76,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
 
   // Adding new Item state
   const [isAddingDish, setIsAddingDish] = useState(false)
+  const [addDishCategory, setAddDishCategory] = useState(DISH_CATEGORIES[0].label)
   const [newDishForm, setNewDishForm] = useState({ dishId: '', quantity: 1, pricePerPlate: 0 })
   const [isAddingService, setIsAddingService] = useState(false)
   const [newServiceForm, setNewServiceForm] = useState({ serviceName: '', price: 0 })
@@ -87,8 +102,8 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
 
     if (result.success && result.data) {
       setEnquiry(result.data)
-      setOccasion(result.data.occasion || '')
-      setServiceType(result.data.serviceType || '')
+      setOccasion(Array.isArray(result.data.occasion) ? (result.data.occasion[0] || '') : (result.data.occasion || ''))
+      setServiceType(Array.isArray(result.data.serviceType) ? (result.data.serviceType[0] || '') : (result.data.serviceType || ''))
     }
     if (dishesResult.success && dishesResult.data) {
       setAllDishes(dishesResult.data)
@@ -296,6 +311,8 @@ Please let us know if you have any questions!
     0
   )
 
+  const isTerminal = enquiry.status === 'SUCCESS' || enquiry.status === 'LOST'
+
   return (
     <PageLayout currentPath="/enquiries">
       <div className="min-h-screen bg-slate-50/50 pb-12">
@@ -425,58 +442,99 @@ Please let us know if you have any questions!
                     <UtensilsCrossed className="w-5 h-5 text-slate-500" />
                     <h2 className="text-lg font-semibold text-slate-900">Dishes (Visible to Admin Only)</h2>
                   </div>
-                  <button
-                    onClick={() => setIsAddingDish(!isAddingDish)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100/50"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add Dish
-                  </button>
+                  {!isTerminal && (
+                    <button
+                      onClick={() => setIsAddingDish(!isAddingDish)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100/50"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Dish
+                    </button>
+                  )}
                 </div>
 
-                {isAddingDish && (
-                  <div className="mb-4 p-4 bg-blue-50/50 border border-blue-100 rounded-xl flex flex-wrap gap-3 items-end">
-                    <div className="flex-1 min-w-[200px]">
-                      <label className="text-xs font-semibold text-slate-500 mb-1 block">Select Dish</label>
-                      <select
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500"
-                        value={newDishForm.dishId}
-                        onChange={e => {
-                          const dish = allDishes.find(d => d.id === e.target.value)
-                          setNewDishForm(prev => ({
-                            ...prev,
-                            dishId: e.target.value,
-                            pricePerPlate: dish ? Number(dish.sellingPricePerPlate) : prev.pricePerPlate
-                          }))
-                        }}
-                      >
-                        <option value="">-- Choose --</option>
-                        {allDishes.map(d => (
-                          <option key={d.id} value={d.id}>{d.name} (₹{Number(d.sellingPricePerPlate)})</option>
+                {isAddingDish && (() => {
+                  const allMapped = DISH_CATEGORIES.flatMap(c => c.dbCategories)
+                  const activeCat = DISH_CATEGORIES.find(c => c.label === addDishCategory)!
+                  const categoryDishes = activeCat.dbCategories.length === 0
+                    ? allDishes.filter(d => !allMapped.includes(d.category))
+                    : allDishes.filter(d => activeCat.dbCategories.includes(d.category))
+                  const selectedDish = allDishes.find(d => d.id === newDishForm.dishId)
+                  return (
+                    <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                      {/* Category dropdown */}
+                      <div className="px-4 pt-4 pb-3 border-b border-slate-100 bg-slate-50/60">
+                        <label className="text-xs font-semibold text-slate-500 mb-1.5 block uppercase tracking-wide">Category</label>
+                        <select
+                          value={addDishCategory}
+                          onChange={e => { setAddDishCategory(e.target.value); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }}
+                          className="w-full px-3 py-2 text-sm font-medium text-slate-800 border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white appearance-none cursor-pointer"
+                        >
+                          {DISH_CATEGORIES.map(cat => (
+                            <option key={cat.label} value={cat.label}>{cat.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* Dish list */}
+                      <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
+                        {categoryDishes.length === 0 ? (
+                          <p className="col-span-2 text-xs text-slate-400 text-center py-4">No dishes in this category.</p>
+                        ) : categoryDishes.map((dish: any) => (
+                          <button
+                            key={dish.id}
+                            onClick={() => setNewDishForm({ dishId: dish.id, quantity: 1, pricePerPlate: Number(dish.sellingPricePerPlate) || 0 })}
+                            className={`flex items-center justify-between p-2.5 rounded-lg text-left text-sm transition-colors border ${
+                              newDishForm.dishId === dish.id
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                            }`}
+                          >
+                            <span className="font-medium truncate">{dish.name}</span>
+                            <span className="text-xs opacity-75 ml-2 shrink-0">₹{Number(dish.sellingPricePerPlate)} {dish.priceUnit || 'per plate'}</span>
+                          </button>
                         ))}
-                      </select>
+                      </div>
+                      {/* Qty / Price / Add — shown when a dish is selected */}
+                      {newDishForm.dishId && (
+                        <div className="px-3 pb-3 pt-2 border-t border-blue-100 flex flex-wrap gap-3 items-end bg-blue-50/40">
+                          <div className="w-24">
+                            <label className="text-xs font-semibold text-slate-500 mb-1 block">Quantity</label>
+                            <input
+                              type="number" min="1"
+                              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white"
+                              value={newDishForm.quantity}
+                              onChange={e => setNewDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))}
+                            />
+                          </div>
+                          <div className="w-28">
+                            <label className="text-xs font-semibold text-slate-500 mb-1 block">
+                              Price / {(selectedDish?.priceUnit || 'per plate').replace('per ', '')}
+                            </label>
+                            <input
+                              type="number"
+                              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white"
+                              value={newDishForm.pricePerPlate}
+                              onChange={e => setNewDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))}
+                            />
+                          </div>
+                          <button
+                            onClick={handleAddNewDish}
+                            disabled={newDishForm.quantity <= 0}
+                            className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                          >
+                            Add
+                          </button>
+                          <button
+                            onClick={() => { setIsAddingDish(false); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }}
+                            className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300 transition"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="w-24">
-                      <label className="text-xs font-semibold text-slate-500 mb-1 block">Quantity</label>
-                      <input
-                        type="number" min="1"
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500"
-                        value={newDishForm.quantity}
-                        onChange={e => setNewDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                      />
-                    </div>
-                    <div className="w-28">
-                      <label className="text-xs font-semibold text-slate-500 mb-1 block">Price / Plate</label>
-                      <input
-                        type="number"
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500"
-                        value={newDishForm.pricePerPlate}
-                        onChange={e => setNewDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))}
-                      />
-                    </div>
-                    <button onClick={handleAddNewDish} disabled={!newDishForm.dishId} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50">Add</button>
-                  </div>
-                )}
+                  )
+                })()}
                 {enquiry.dishes.length > 0 ? (
                   <div className="space-y-3">
                     {enquiry.dishes.map((d: any) => (
@@ -501,9 +559,16 @@ Please let us know if you have any questions!
                             )}
                             <div>
                               <p className="font-semibold text-slate-900">{d.dish?.name || '—'}</p>
-                              {d.dish?.category && (
-                                <p className="text-xs text-slate-500">{d.dish.category}</p>
-                              )}
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                {d.dish?.category && (
+                                  <span className="text-xs text-slate-500">{d.dish.category}</span>
+                                )}
+                                {d.dish?.priceUnit && (
+                                  <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                                    {d.dish.priceUnit}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
 
@@ -532,20 +597,22 @@ Please let us know if you have any questions!
                               {enquiry.status !== 'PENDING' && (
                                 <div className="text-right">
                                   <p className="text-sm font-semibold text-slate-900">
-                                    {d.quantity} plates × ₹{Number(d.pricePerPlate).toLocaleString()}
+                                    {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')} × ₹{(Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0).toLocaleString()}
                                   </p>
                                   <p className="text-xs text-slate-500 font-medium">
-                                    Subtotal: ₹{(d.quantity * Number(d.pricePerPlate)).toLocaleString()}
+                                    Subtotal: ₹{(d.quantity * (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0)).toLocaleString()}
                                   </p>
                                 </div>
                               )}
-                              <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
-                                <button onClick={() => {
-                                  setEditingDishId(d.id)
-                                  setEditDishForm({ quantity: d.quantity, pricePerPlate: Number(d.pricePerPlate) })
-                                }} className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
-                                <button onClick={() => handleRemoveDish(d.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
-                              </div>
+                              {!isTerminal && (
+                                <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
+                                  <button onClick={() => {
+                                    setEditingDishId(d.id)
+                                    setEditDishForm({ quantity: d.quantity, pricePerPlate: Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0 })
+                                  }} className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
+                                  <button onClick={() => handleRemoveDish(d.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -572,13 +639,15 @@ Please let us know if you have any questions!
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-slate-900">Services (Visible to Admin Only)</h2>
-                  <button
-                    onClick={() => setIsAddingService(!isAddingService)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100/50"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add Service
-                  </button>
+                  {!isTerminal && (
+                    <button
+                      onClick={() => setIsAddingService(!isAddingService)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100/50"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Service
+                    </button>
+                  )}
                 </div>
 
                 {isAddingService && (
@@ -641,13 +710,15 @@ Please let us know if you have any questions!
                                   ₹{Number(s.price).toLocaleString()}
                                 </p>
                               )}
-                              <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
-                                <button onClick={() => {
-                                  setEditingServiceId(s.id)
-                                  setEditServiceForm({ serviceName: s.serviceName, price: Number(s.price) })
-                                }} className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
-                                <button onClick={() => handleRemoveService(s.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
-                              </div>
+                              {!isTerminal && (
+                                <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
+                                  <button onClick={() => {
+                                    setEditingServiceId(s.id)
+                                    setEditServiceForm({ serviceName: s.serviceName, price: Number(s.price) })
+                                  }} className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
+                                  <button onClick={() => handleRemoveService(s.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
+                                </div>
+                              )}
                             </div>
                           </>
                         )}
@@ -702,7 +773,7 @@ Please let us know if you have any questions!
                 <div className="space-y-2">
                   <button
                     onClick={() => handleStatusUpdate('PENDING')}
-                    disabled={updating || enquiry.status === 'PENDING'}
+                    disabled={updating || enquiry.status === 'PENDING' || enquiry.status === 'SUCCESS'}
                     className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'PENDING'
                       ? 'bg-amber-100 text-amber-700 border-2 border-amber-300'
                       : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
@@ -713,7 +784,14 @@ Please let us know if you have any questions!
                   </button>
                   {enquiry.status === 'PENDING' ? (
                     <button
-                      onClick={() => setIsFinalizeModalOpen(true)}
+                      onClick={() => {
+                        const prices: Record<string, number> = {}
+                        enquiry.dishes.forEach((d: any) => {
+                          prices[d.id] = Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0
+                        })
+                        setFinalizeDishPrices(prices)
+                        setIsFinalizeModalOpen(true)
+                      }}
                       disabled={updating}
                       className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
                     >
@@ -723,7 +801,7 @@ Please let us know if you have any questions!
                   ) : (
                     <button
                       onClick={() => handleStatusUpdate('SUCCESS')}
-                      disabled={updating || enquiry.status === 'SUCCESS'}
+                      disabled={updating || enquiry.status === 'SUCCESS' || enquiry.status === 'LOST'}
                       className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'SUCCESS'
                         ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-300'
                         : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
@@ -738,7 +816,7 @@ Please let us know if you have any questions!
                   )}
                   <button
                     onClick={() => handleStatusUpdate('LOST')}
-                    disabled={updating || enquiry.status === 'LOST'}
+                    disabled={updating || enquiry.status === 'LOST' || enquiry.status === 'SUCCESS'}
                     className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'LOST'
                       ? 'bg-red-100 text-red-700 border-2 border-red-300'
                       : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
@@ -880,16 +958,27 @@ Please let us know if you have any questions!
                       <div key={d.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
                         <div className="flex-1">
                           <p className="font-semibold text-slate-900">{d.dish?.name || '—'}</p>
-                          <p className="text-xs text-slate-500">{d.quantity} plates</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-xs text-slate-500">
+                              {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')}
+                            </span>
+                            {d.dish?.priceUnit && (
+                              <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                                {d.dish.priceUnit}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-3">
-                          <label className="text-xs font-semibold text-slate-500">Price / Plate</label>
+                          <label className="text-xs font-semibold text-slate-500">
+                            Price / {(d.dish?.priceUnit || 'per plate').replace('per ', '')}
+                          </label>
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₹</span>
                             <input
                               type="number"
                               className="w-28 pl-7 pr-3 py-2 text-sm font-semibold border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                              value={finalizeDishPrices[d.id] ?? d.pricePerPlate}
+                              value={finalizeDishPrices[d.id] ?? (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0)}
                               onChange={e => setFinalizeDishPrices(prev => ({ ...prev, [d.id]: Number(e.target.value) }))}
                             />
                           </div>
@@ -933,7 +1022,7 @@ Please let us know if you have any questions!
                 <span className="text-sm text-slate-500 font-medium">Estimated Total</span>
                 <span className="text-xl font-bold text-slate-900">
                   ₹{
-                    (enquiry.dishes.reduce((sum: number, d: any) => sum + (d.quantity * (finalizeDishPrices[d.id] ?? Number(d.pricePerPlate))), 0) +
+                    (enquiry.dishes.reduce((sum: number, d: any) => sum + (d.quantity * (finalizeDishPrices[d.id] ?? (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0))), 0) +
                       enquiry.services.reduce((sum: number, s: any) => sum + (finalizeServicePrices[s.id] ?? Number(s.price)), 0)).toLocaleString()
                   }
                 </span>
