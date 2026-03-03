@@ -9,6 +9,13 @@ function serializeEnquiry(enquiry: any): any {
   return {
     ...enquiry,
     totalAmount: Number(enquiry.totalAmount),
+    finalPrice: Number(enquiry.finalPrice ?? 0),
+    advanceAmount: Number(enquiry.advanceAmount ?? 0),
+    costItems: enquiry.costItems?.map((c: any) => ({
+      ...c,
+      qty: Number(c.qty),
+      rate: Number(c.rate),
+    })),
     dishes: enquiry.dishes?.map((d: any) => ({
       ...d,
       pricePerPlate: Number(d.pricePerPlate),
@@ -33,6 +40,21 @@ function serializeEnquiry(enquiry: any): any {
       paidAmount: Number(enquiry.convertedEvent.paidAmount),
       balanceAmount: Number(enquiry.convertedEvent.balanceAmount),
     } : undefined,
+  }
+}
+
+export async function updateEnquiryPricing(
+  id: string,
+  data: { finalPrice?: number; advanceAmount?: number; paymentTerms?: string }
+) {
+  try {
+    const enquiry = await prisma.enquiry.update({ where: { id }, data })
+    revalidatePath(`/enquiries/${id}`)
+    revalidatePath('/enquiries')
+    return { success: true, data: serializeEnquiry(enquiry) }
+  } catch (error) {
+    console.error('Failed to update enquiry pricing:', error)
+    return { success: false, error: 'Failed to update pricing' }
   }
 }
 
@@ -168,6 +190,13 @@ export async function updateEnquiryStatus(enquiryId: string, status: EnquiryStat
 
     // If status is SUCCESS, convert to event
     if (status === 'SUCCESS') {
+      // Calculate internal cost from costing items
+      const costItems = await prisma.costItem.findMany({ where: { enquiryId } })
+      const internalCost = costItems.reduce((sum, i) => sum + Number(i.qty) * Number(i.rate), 0)
+
+      // Use finalPrice if set, otherwise fall back to totalAmount
+      const agreedTotal = Number(enquiry.finalPrice) > 0 ? Number(enquiry.finalPrice) : Number(enquiry.totalAmount)
+
       const event = await prisma.event.create({
         data: {
           name: `${enquiry.clientName}'s Event`,
@@ -179,9 +208,11 @@ export async function updateEnquiryStatus(enquiryId: string, status: EnquiryStat
           eventDate: enquiry.eventDate,
           eventTime: enquiry.eventTime,
           guestCount: enquiry.peopleCount,
-          totalAmount: enquiry.totalAmount,
-          paidAmount: 0,
-          balanceAmount: enquiry.totalAmount,
+          totalAmount: agreedTotal,
+          paidAmount: Number(enquiry.advanceAmount) || 0,
+          balanceAmount: agreedTotal - (Number(enquiry.advanceAmount) || 0),
+          internalCost,
+          advanceAmount: Number(enquiry.advanceAmount) || 0,
           createdById: userId,
           enquiryId: enquiry.id,
           dishes: {
@@ -200,6 +231,21 @@ export async function updateEnquiryStatus(enquiryId: string, status: EnquiryStat
           },
         },
       })
+
+      // Copy costing items to the event
+      if (costItems.length > 0) {
+        await prisma.costItem.createMany({
+          data: costItems.map(i => ({
+            eventId: event.id,
+            section: i.section,
+            itemName: i.itemName,
+            qty: i.qty,
+            unit: i.unit,
+            rate: i.rate,
+            orderIndex: i.orderIndex,
+          })),
+        })
+      }
 
       revalidatePath('/')
       revalidatePath('/enquiries')
@@ -288,6 +334,9 @@ export async function getEnquiryById(id: string) {
           },
         },
         convertedEvent: true,
+        costItems: {
+          orderBy: [{ section: 'asc' }, { orderIndex: 'asc' }, { createdAt: 'asc' }],
+        },
       },
     })
 

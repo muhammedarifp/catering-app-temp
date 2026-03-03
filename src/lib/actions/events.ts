@@ -10,6 +10,13 @@ function serializeEvent(event: any): any {
     totalAmount: Number(event.totalAmount),
     paidAmount: Number(event.paidAmount),
     balanceAmount: Number(event.balanceAmount),
+    internalCost: Number(event.internalCost ?? 0),
+    advanceAmount: Number(event.advanceAmount ?? 0),
+    costItems: event.costItems?.map((c: any) => ({
+      ...c,
+      qty: Number(c.qty),
+      rate: Number(c.rate),
+    })),
     dishes: event.dishes?.map((d: any) => ({
       ...d,
       pricePerPlate: Number(d.pricePerPlate),
@@ -170,6 +177,9 @@ export async function getEventById(id: string) {
         expenses: true,
         invoices: true,
         enquiry: true,
+        costItems: {
+          orderBy: [{ section: 'asc' }, { orderIndex: 'asc' }, { createdAt: 'asc' }],
+        },
         createdBy: {
           select: {
             name: true,
@@ -337,5 +347,46 @@ export async function getEventsForGroceryPurchase(date?: Date) {
   } catch (error) {
     console.error('Failed to fetch events for grocery purchase:', error)
     return { success: false, error: 'Failed to fetch events' }
+  }
+}
+
+export async function updateEventChecklist(
+  eventId: string,
+  data: {
+    checklistGrocery?: boolean
+    checklistRentals?: boolean
+    checklistStaff?: boolean
+    checklistTransport?: boolean
+  }
+) {
+  try {
+    const event = await prisma.event.update({ where: { id: eventId }, data })
+    revalidatePath(`/events/${eventId}`)
+    return { success: true, data: serializeEvent(event) }
+  } catch (error) {
+    console.error('Failed to update event checklist:', error)
+    return { success: false, error: 'Failed to update checklist' }
+  }
+}
+
+export async function updateEventAdvance(eventId: string, advanceAmount: number) {
+  try {
+    const event = await prisma.event.findUnique({ where: { id: eventId } })
+    if (!event) return { success: false, error: 'Event not found' }
+
+    const updatedEvent = await prisma.event.update({
+      where: { id: eventId },
+      data: {
+        advanceAmount,
+        paidAmount: advanceAmount,
+        balanceAmount: Number(event.totalAmount) - advanceAmount,
+      },
+    })
+    revalidatePath(`/events/${eventId}`)
+    revalidatePath('/events')
+    return { success: true, data: serializeEvent(updatedEvent) }
+  } catch (error) {
+    console.error('Failed to update event advance:', error)
+    return { success: false, error: 'Failed to update advance' }
   }
 }

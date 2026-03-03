@@ -65,7 +65,7 @@ export default function EnquiriesPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
             {[
               { label: 'All', value: stats.all, color: 'text-slate-900' },
-              { label: 'Pending', value: stats.pending, color: 'text-amber-600' },
+              { label: 'Planning', value: stats.pending, color: 'text-amber-600' },
               { label: 'Success', value: stats.success, color: 'text-emerald-600' },
               { label: 'Lost', value: stats.lost, color: 'text-slate-400' },
             ].map(stat => (
@@ -81,7 +81,7 @@ export default function EnquiriesPage() {
             <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
               {[
                 { value: 'all', label: 'All' },
-                { value: 'PENDING', label: 'Pending' },
+                { value: 'PENDING', label: 'Planning' },
                 { value: 'SUCCESS', label: 'Success' },
                 { value: 'LOST', label: 'Lost' },
               ].map(tab => (

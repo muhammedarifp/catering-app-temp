@@ -3,35 +3,17 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft,
-  CheckCircle,
-  XCircle,
-  Clock,
-  MapPin,
-  Calendar,
-  Users,
-  Phone,
-  FileText,
-  Send,
-  Download,
-  CalendarDays,
-  Plus,
-  Share2,
-  UtensilsCrossed
+  ArrowLeft, CheckCircle, XCircle, Clock, MapPin, Calendar, Users, Phone,
+  FileText, Send, Download, CalendarDays, Plus, Share2, UtensilsCrossed,
+  Trash2, Calculator, DollarSign, History
 } from 'lucide-react'
 import PageLayout from '@/components/PageLayout'
 import {
-  getEnquiryById,
-  updateEnquiryStatus,
-  addEnquiryUpdate,
-  updateEnquiryDetails,
-  removeEnquiryDish,
-  removeEnquiryService,
-  updateEnquiryDish,
-  updateEnquiryService,
-  addEnquiryDish,
-  addEnquiryService
+  getEnquiryById, updateEnquiryStatus, addEnquiryUpdate, updateEnquiryDetails,
+  removeEnquiryDish, removeEnquiryService, updateEnquiryDish, updateEnquiryService,
+  addEnquiryDish, addEnquiryService, updateEnquiryPricing
 } from '@/lib/actions/enquiries'
+import { addCostItem, updateCostItem, deleteCostItem } from '@/lib/actions/costing'
 import { getDishes } from '@/lib/actions/dishes'
 import { useAuth } from '@/contexts/AuthContext'
 import { downloadMenu } from '@/lib/invoice-pdf'
@@ -50,96 +32,98 @@ const DISH_CATEGORIES: { label: string; dbCategories: string[] }[] = [
   { label: 'Other',         dbCategories: [] },
 ]
 
+const COST_SECTIONS = ['Grocery', 'Meat', 'Vegetables', 'Rentals', 'Labour', 'Others']
+
 export default function EnquiryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const { user } = useAuth()
+
   const [enquiry, setEnquiry] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [activeTab, setActiveTab] = useState<'menu' | 'costing' | 'pricing' | 'history'>('menu')
+
   const [noteInput, setNoteInput] = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const [occasion, setOccasion] = useState('')
   const [serviceType, setServiceType] = useState('')
 
-  // List of all dishes for adding new ones
   const [allDishes, setAllDishes] = useState<any[]>([])
 
-  // Editing state
+  // Dish editing
   const [editingDishId, setEditingDishId] = useState<string | null>(null)
   const [editDishForm, setEditDishForm] = useState({ quantity: 0, pricePerPlate: 0 })
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
   const [editServiceForm, setEditServiceForm] = useState({ serviceName: '', price: 0 })
-
-  // Expand sub-items state
   const [expandedDishId, setExpandedDishId] = useState<string | null>(null)
 
-  // Adding new Item state
+  // Adding dish/service
   const [isAddingDish, setIsAddingDish] = useState(false)
   const [addDishCategory, setAddDishCategory] = useState(DISH_CATEGORIES[0].label)
   const [newDishForm, setNewDishForm] = useState({ dishId: '', quantity: 1, pricePerPlate: 0 })
   const [isAddingService, setIsAddingService] = useState(false)
   const [newServiceForm, setNewServiceForm] = useState({ serviceName: '', price: 0 })
 
-  // Finalize / Download Quote Modals
-  const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false)
-  const [finalizeDishPrices, setFinalizeDishPrices] = useState<Record<string, number>>({})
-  const [finalizeServicePrices, setFinalizeServicePrices] = useState<Record<string, number>>({})
+  // Costing
+  const [costItems, setCostItems] = useState<any[]>([])
+  const [isAddingCostItem, setIsAddingCostItem] = useState(false)
+  const [newCostItem, setNewCostItem] = useState({ section: 'Grocery', itemName: '', qty: 1, unit: 'kg', rate: 0 })
+  const [editingCostId, setEditingCostId] = useState<string | null>(null)
+  const [editCostForm, setEditCostForm] = useState({ section: '', itemName: '', qty: 0, unit: '', rate: 0 })
+  const [savingCost, setSavingCost] = useState(false)
 
+  // Pricing
+  const [finalPrice, setFinalPrice] = useState(0)
+  const [advanceAmount, setAdvanceAmount] = useState(0)
+  const [paymentTerms, setPaymentTerms] = useState('')
+  const [savingPricing, setSavingPricing] = useState(false)
+
+  // Download modal
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false)
   const [downloadIncludeSubItems, setDownloadIncludeSubItems] = useState(false)
 
-  useEffect(() => {
-    loadEnquiry()
-  }, [id])
+  useEffect(() => { loadEnquiry() }, [id])
 
   async function loadEnquiry() {
     setLoading(true)
     const [result, dishesResult] = await Promise.all([
       getEnquiryById(id),
-      getDishes(undefined, true) // fetch active dishes
+      getDishes(undefined, true),
     ])
-
     if (result.success && result.data) {
       setEnquiry(result.data)
       setOccasion(Array.isArray(result.data.occasion) ? (result.data.occasion[0] || '') : (result.data.occasion || ''))
       setServiceType(Array.isArray(result.data.serviceType) ? (result.data.serviceType[0] || '') : (result.data.serviceType || ''))
+      setCostItems(result.data.costItems || [])
+      setFinalPrice(result.data.finalPrice || 0)
+      setAdvanceAmount(result.data.advanceAmount || 0)
+      setPaymentTerms(result.data.paymentTerms || '')
     }
-    if (dishesResult.success && dishesResult.data) {
-      setAllDishes(dishesResult.data)
-    }
+    if (dishesResult.success && dishesResult.data) setAllDishes(dishesResult.data)
     setLoading(false)
   }
 
   const handleStatusUpdate = async (status: 'PENDING' | 'LOST' | 'SUCCESS') => {
     if (!user) return
     setUpdating(true)
-    const result = await updateEnquiryStatus(id, status as any, user.id)
-    if (result.success) {
-      loadEnquiry()
-    }
+    await updateEnquiryStatus(id, status as any, user.id)
+    loadEnquiry()
     setUpdating(false)
   }
 
   const handleAddNote = async () => {
     if (!noteInput.trim()) return
     setAddingNote(true)
-    const result = await addEnquiryUpdate(id, noteInput)
-    if (result.success) {
-      setNoteInput('')
-      loadEnquiry()
-    }
+    await addEnquiryUpdate(id, noteInput)
+    setNoteInput('')
+    loadEnquiry()
     setAddingNote(false)
   }
 
   const handleAddNewDish = async () => {
     if (!newDishForm.dishId || newDishForm.quantity <= 0) return
-    // Auto-fill price if 0 or empty? We'll assume admin typed it.
-    await addEnquiryDish(id, {
-      dishId: newDishForm.dishId,
-      quantity: newDishForm.quantity,
-      pricePerPlate: newDishForm.pricePerPlate
-    })
+    await addEnquiryDish(id, { dishId: newDishForm.dishId, quantity: newDishForm.quantity, pricePerPlate: newDishForm.pricePerPlate })
     setIsAddingDish(false)
     setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 })
     loadEnquiry()
@@ -147,10 +131,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
 
   const handleAddNewService = async () => {
     if (!newServiceForm.serviceName.trim()) return
-    await addEnquiryService(id, {
-      serviceName: newServiceForm.serviceName,
-      price: newServiceForm.price
-    })
+    await addEnquiryService(id, { serviceName: newServiceForm.serviceName, price: newServiceForm.price })
     setIsAddingService(false)
     setNewServiceForm({ serviceName: '', price: 0 })
     loadEnquiry()
@@ -163,10 +144,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const handleRemoveDish = async (dishId: string) => {
-    if (confirm('Are you sure you want to remove this dish?')) {
-      await removeEnquiryDish(dishId, id)
-      loadEnquiry()
-    }
+    if (confirm('Remove this dish?')) { await removeEnquiryDish(dishId, id); loadEnquiry() }
   }
 
   const handleUpdateService = async (serviceId: string) => {
@@ -176,15 +154,44 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const handleRemoveService = async (serviceId: string) => {
-    if (confirm('Are you sure you want to remove this service?')) {
-      await removeEnquiryService(serviceId, id)
-      loadEnquiry()
+    if (confirm('Remove this service?')) { await removeEnquiryService(serviceId, id); loadEnquiry() }
+  }
+
+  const handleAddCostItem = async () => {
+    if (!newCostItem.itemName.trim()) return
+    setSavingCost(true)
+    await addCostItem({ enquiryId: id, ...newCostItem })
+    setNewCostItem({ section: 'Grocery', itemName: '', qty: 1, unit: 'kg', rate: 0 })
+    setIsAddingCostItem(false)
+    loadEnquiry()
+    setSavingCost(false)
+  }
+
+  const handleUpdateCostItem = async (costId: string) => {
+    setSavingCost(true)
+    await updateCostItem(costId, editCostForm)
+    setEditingCostId(null)
+    loadEnquiry()
+    setSavingCost(false)
+  }
+
+  const handleDeleteCostItem = async (costId: string) => {
+    if (confirm('Delete this cost item?')) { await deleteCostItem(costId); loadEnquiry() }
+  }
+
+  const handleSavePricing = async () => {
+    if (!user) return
+    setSavingPricing(true)
+    await updateEnquiryPricing(id, { finalPrice, advanceAmount, paymentTerms })
+    if (enquiry.status === 'PENDING') {
+      await updateEnquiryStatus(id, 'PRICE_QUOTED' as any, user.id)
     }
+    loadEnquiry()
+    setSavingPricing(false)
   }
 
   const handleDownloadMenu = (format: 'pdf' | 'excel') => {
     if (!enquiry) return
-
     const payload = {
       status: enquiry.status,
       quotationNumber: enquiry.quotationNumber,
@@ -198,684 +205,746 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
       serviceType: serviceType || undefined,
       dishes: enquiry.dishes,
       services: enquiry.services,
-      includeSubItems: downloadIncludeSubItems
+      includeSubItems: downloadIncludeSubItems,
     }
-
     if (format === 'excel') {
       import('@/lib/invoice-excel').then(m => m.downloadMenuExcel(payload))
     } else {
       downloadMenu(payload)
     }
-
     setIsDownloadModalOpen(false)
   }
 
   const handleShareQuotation = () => {
     if (!enquiry) return
-    const dishesTotal = enquiry.dishes.reduce((sum: number, d: any) => sum + d.quantity * Number(d.pricePerPlate), 0)
-    const servicesTotal = enquiry.services.reduce((sum: number, s: any) => sum + Number(s.price), 0)
-    const total = dishesTotal + servicesTotal
-
-    const text = `*New Quotation from CaterPro*
-Quotation No: ${enquiry.quotationNumber}
-Event Date: ${new Date(enquiry.eventDate).toLocaleDateString()}
-Guests: ${enquiry.peopleCount}
-Total Amount: ₹${total.toLocaleString()}
-
-Please let us know if you have any questions!
-    `
-    const url = `https://wa.me/${enquiry.clientContact}?text=${encodeURIComponent(text)}`
-    window.open(url, '_blank')
+    const total = finalPrice > 0
+      ? finalPrice
+      : enquiry.dishes.reduce((s: number, d: any) => s + d.quantity * Number(d.pricePerPlate), 0) +
+        enquiry.services.reduce((s: number, sv: any) => s + Number(sv.price), 0)
+    const text = `*Quotation from CaterPro*\nQuotation No: ${enquiry.quotationNumber}\nEvent Date: ${new Date(enquiry.eventDate).toLocaleDateString()}\nGuests: ${enquiry.peopleCount}\nTotal: ₹${total.toLocaleString()}\n\nPlease let us know if you have any questions!`
+    window.open(`https://wa.me/${enquiry.clientContact}?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'PENDING':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold border border-amber-200">
-            <Clock className="w-3.5 h-3.5" />
-            Pending
-          </span>
-        )
-      case 'SUCCESS':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold border border-emerald-200">
-            <CheckCircle className="w-3.5 h-3.5" />
-            Success
-          </span>
-        )
-      case 'PRICE_QUOTED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold border border-indigo-200">
-            <CheckCircle className="w-3.5 h-3.5" />
-            Quoted
-          </span>
-        )
-      case 'LOST':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-semibold border border-red-200">
-            <XCircle className="w-3.5 h-3.5" />
-            Lost
-          </span>
-        )
-      default:
-        return null
+      case 'PENDING':      return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold border border-amber-200"><Clock className="w-3.5 h-3.5" />Planning</span>
+      case 'SUCCESS':      return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold border border-emerald-200"><CheckCircle className="w-3.5 h-3.5" />Confirmed</span>
+      case 'PRICE_QUOTED': return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold border border-indigo-200"><CheckCircle className="w-3.5 h-3.5" />Price Quoted</span>
+      case 'LOST':         return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-semibold border border-red-200"><XCircle className="w-3.5 h-3.5" />Lost</span>
+      default: return null
     }
   }
 
   const getUpdateIcon = (updateType: string) => {
     switch (updateType) {
-      case 'STATUS_CHANGE':
-        return <CheckCircle className="w-4 h-4 text-indigo-500" />
-      case 'NOTE_ADDED':
-        return <FileText className="w-4 h-4 text-slate-400" />
-      default:
-        return <Clock className="w-4 h-4 text-slate-400" />
+      case 'STATUS_CHANGE': return <CheckCircle className="w-4 h-4 text-indigo-500" />
+      case 'NOTE_ADDED':    return <FileText className="w-4 h-4 text-slate-400" />
+      default:              return <Clock className="w-4 h-4 text-slate-400" />
     }
   }
 
-  if (loading) {
-    return (
-      <PageLayout currentPath="/enquiries">
-        <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
-          <div className="text-slate-400">Loading enquiry...</div>
-        </div>
-      </PageLayout>
-    )
-  }
-
-  if (!enquiry) {
-    return (
-      <PageLayout currentPath="/enquiries">
-        <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-slate-500 mb-4">Enquiry not found</p>
-            <button
-              onClick={() => router.push('/')}
-              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium"
-            >
-              Back to Home
-            </button>
-          </div>
-        </div>
-      </PageLayout>
-    )
-  }
-
-  const dishesTotal = enquiry.dishes.reduce(
-    (sum: number, d: any) => sum + d.quantity * Number(d.pricePerPlate),
-    0
+  if (loading) return (
+    <PageLayout currentPath="/enquiries">
+      <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
+        <div className="text-slate-400">Loading enquiry...</div>
+      </div>
+    </PageLayout>
   )
-  const servicesTotal = enquiry.services.reduce(
-    (sum: number, s: any) => sum + Number(s.price),
-    0
+
+  if (!enquiry) return (
+    <PageLayout currentPath="/enquiries">
+      <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-slate-500 mb-4">Enquiry not found</p>
+          <button onClick={() => router.push('/')} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium">Back to Home</button>
+        </div>
+      </div>
+    </PageLayout>
   )
 
   const isTerminal = enquiry.status === 'SUCCESS' || enquiry.status === 'LOST'
+  const dishesTotal = enquiry.dishes.reduce((s: number, d: any) => s + d.quantity * (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0), 0)
+  const servicesTotal = enquiry.services.reduce((s: number, sv: any) => s + Number(sv.price), 0)
+  const internalCostTotal = costItems.reduce((s: number, c: any) => s + Number(c.qty) * Number(c.rate), 0)
+  const margin = finalPrice > 0 ? ((finalPrice - internalCostTotal) / finalPrice * 100) : 0
+  const costBySec = COST_SECTIONS.reduce((acc, sec) => { acc[sec] = costItems.filter(c => c.section === sec); return acc }, {} as Record<string, any[]>)
 
   return (
     <PageLayout currentPath="/enquiries">
       <div className="min-h-screen bg-slate-50/50 pb-12">
         <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8 lg:py-12 space-y-6">
 
-          {/* Back button + Header */}
-          <div className="flex items-start justify-between gap-4">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex items-start gap-4">
-              <button
-                onClick={() => router.back()}
-                className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors mt-1"
-              >
+              <button onClick={() => router.back()} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors mt-1">
                 <ArrowLeft className="w-5 h-5 text-slate-600" />
               </button>
               <div>
                 <div className="flex items-center gap-3 mb-1">
-                  <h1 className="text-2xl lg:text-3xl font-bold text-slate-900">
-                    {enquiry.quotationNumber}
-                  </h1>
+                  <h1 className="text-2xl lg:text-3xl font-bold text-slate-900">{enquiry.quotationNumber}</h1>
                   {getStatusBadge(enquiry.status)}
                 </div>
                 <p className="text-slate-500">
-                  Created {new Date(enquiry.createdAt).toLocaleDateString('en-IN', {
-                    day: '2-digit', month: 'short', year: 'numeric'
-                  })}
+                  Created {new Date(enquiry.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                   {enquiry.createdBy && ` by ${enquiry.createdBy.name}`}
                 </p>
               </div>
             </div>
-
             <div className="flex items-center gap-2 flex-wrap">
-              <input
-                type="text"
-                placeholder="Occasion (e.g. NIKKAH)"
-                value={occasion}
+              <input type="text" placeholder="Occasion (e.g. NIKKAH)" value={occasion}
                 onChange={e => setOccasion(e.target.value)}
-                onBlur={async () => {
-                  await updateEnquiryDetails(id, { occasion: occasion ? [occasion] : undefined })
-                }}
-                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-44"
-              />
-              <input
-                type="text"
-                placeholder="Service Type"
-                value={serviceType}
+                onBlur={async () => { await updateEnquiryDetails(id, { occasion: occasion ? [occasion] : undefined }) }}
+                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-44" />
+              <input type="text" placeholder="Service Type" value={serviceType}
                 onChange={e => setServiceType(e.target.value)}
-                onBlur={async () => {
-                  await updateEnquiryDetails(id, { serviceType: serviceType ? [serviceType] : undefined })
-                }}
-                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-36"
-              />
-              <button
-                onClick={() => setIsDownloadModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all"
-              >
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Menu</span>
+                onBlur={async () => { await updateEnquiryDetails(id, { serviceType: serviceType ? [serviceType] : undefined }) }}
+                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-36" />
+              <button onClick={() => setIsDownloadModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all">
+                <Download className="w-4 h-4" /><span className="hidden sm:inline">Menu</span>
               </button>
-              <button
-                onClick={handleShareQuotation}
-                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 border border-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-all shadow-sm"
-              >
-                <Share2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Share</span>
+              <button onClick={handleShareQuotation} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 border border-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-all shadow-sm">
+                <Share2 className="w-4 h-4" /><span className="hidden sm:inline">Share</span>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* Left Column */}
-            <div className="lg:col-span-2 space-y-6">
-
-              {/* Client & Event Info */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">Details</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg mt-0.5">
-                      <Phone className="w-4 h-4 text-slate-500" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 mb-0.5">Client</p>
-                      <p className="font-semibold text-slate-900">{enquiry.clientName}</p>
-                      <p className="text-sm text-slate-600">{enquiry.clientContact}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg mt-0.5">
-                      <MapPin className="w-4 h-4 text-slate-500" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 mb-0.5">Location</p>
-                      <p className="font-semibold text-slate-900">{enquiry.location}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg mt-0.5">
-                      <Calendar className="w-4 h-4 text-slate-500" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 mb-0.5">Event Date & Time</p>
-                      <p className="font-semibold text-slate-900">
-                        {new Date(enquiry.eventDate).toLocaleDateString('en-IN', {
-                          day: '2-digit', month: 'short', year: 'numeric'
-                        })}
-                      </p>
-                      <p className="text-sm text-slate-600">{enquiry.eventTime}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg mt-0.5">
-                      <Users className="w-4 h-4 text-slate-500" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 mb-0.5">Guests</p>
-                      <p className="font-semibold text-slate-900">{enquiry.peopleCount} people</p>
-                    </div>
-                  </div>
+          {/* Client Info */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-slate-100 rounded-lg mt-0.5"><Phone className="w-4 h-4 text-slate-500" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Client</p>
+                  <p className="font-semibold text-slate-900 text-sm">{enquiry.clientName}</p>
+                  <p className="text-xs text-slate-600">{enquiry.clientContact}</p>
                 </div>
               </div>
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-slate-100 rounded-lg mt-0.5"><MapPin className="w-4 h-4 text-slate-500" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Venue</p>
+                  <p className="font-semibold text-slate-900 text-sm">{enquiry.location}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-slate-100 rounded-lg mt-0.5"><Calendar className="w-4 h-4 text-slate-500" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Date & Time</p>
+                  <p className="font-semibold text-slate-900 text-sm">{new Date(enquiry.eventDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                  <p className="text-xs text-slate-600">{enquiry.eventTime}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-slate-100 rounded-lg mt-0.5"><Users className="w-4 h-4 text-slate-500" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Guests</p>
+                  <p className="font-semibold text-slate-900 text-sm">{enquiry.peopleCount} people</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-              {/* Dishes */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <UtensilsCrossed className="w-5 h-5 text-slate-500" />
-                    <h2 className="text-lg font-semibold text-slate-900">Dishes (Visible to Admin Only)</h2>
-                  </div>
-                  {!isTerminal && (
-                    <button
-                      onClick={() => setIsAddingDish(!isAddingDish)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100/50"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add Dish
+          {/* Main workspace grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {/* LEFT: Tabbed workspace */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+                {/* Tab bar */}
+                <div className="flex border-b border-slate-100 bg-slate-50/60">
+                  {[
+                    { key: 'menu',    label: 'Menu',    Icon: UtensilsCrossed },
+                    { key: 'costing', label: 'Costing', Icon: Calculator },
+                    { key: 'pricing', label: 'Pricing', Icon: DollarSign },
+                    { key: 'history', label: 'History', Icon: History },
+                  ].map(({ key, label, Icon }) => (
+                    <button key={key} onClick={() => setActiveTab(key as any)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-3.5 text-xs sm:text-sm font-semibold transition-colors border-b-2 ${
+                        activeTab === key
+                          ? 'border-blue-600 text-blue-700 bg-white'
+                          : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/60'
+                      }`}>
+                      <Icon className="w-4 h-4" />
+                      <span>{label}</span>
                     </button>
-                  )}
+                  ))}
                 </div>
 
-                {isAddingDish && (() => {
-                  const allMapped = DISH_CATEGORIES.flatMap(c => c.dbCategories)
-                  const activeCat = DISH_CATEGORIES.find(c => c.label === addDishCategory)!
-                  const categoryDishes = activeCat.dbCategories.length === 0
-                    ? allDishes.filter(d => !allMapped.includes(d.category))
-                    : allDishes.filter(d => activeCat.dbCategories.includes(d.category))
-                  const selectedDish = allDishes.find(d => d.id === newDishForm.dishId)
-                  return (
-                    <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                      {/* Category dropdown */}
-                      <div className="px-4 pt-4 pb-3 border-b border-slate-100 bg-slate-50/60">
-                        <label className="text-xs font-semibold text-slate-500 mb-1.5 block uppercase tracking-wide">Category</label>
-                        <select
-                          value={addDishCategory}
-                          onChange={e => { setAddDishCategory(e.target.value); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }}
-                          className="w-full px-3 py-2 text-sm font-medium text-slate-800 border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white appearance-none cursor-pointer"
-                        >
-                          {DISH_CATEGORIES.map(cat => (
-                            <option key={cat.label} value={cat.label}>{cat.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {/* Dish list */}
-                      <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
-                        {categoryDishes.length === 0 ? (
-                          <p className="col-span-2 text-xs text-slate-400 text-center py-4">No dishes in this category.</p>
-                        ) : categoryDishes.map((dish: any) => (
-                          <button
-                            key={dish.id}
-                            onClick={() => setNewDishForm({ dishId: dish.id, quantity: 1, pricePerPlate: Number(dish.sellingPricePerPlate) || 0 })}
-                            className={`flex items-center justify-between p-2.5 rounded-lg text-left text-sm transition-colors border ${
-                              newDishForm.dishId === dish.id
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
-                            }`}
-                          >
-                            <span className="font-medium truncate">{dish.name}</span>
-                            <span className="text-xs opacity-75 ml-2 shrink-0">₹{Number(dish.sellingPricePerPlate)} {dish.priceUnit || 'per plate'}</span>
-                          </button>
-                        ))}
-                      </div>
-                      {/* Qty / Price / Add — shown when a dish is selected */}
-                      {newDishForm.dishId && (
-                        <div className="px-3 pb-3 pt-2 border-t border-blue-100 flex flex-wrap gap-3 items-end bg-blue-50/40">
-                          <div className="w-24">
-                            <label className="text-xs font-semibold text-slate-500 mb-1 block">Quantity</label>
-                            <input
-                              type="number" min="1"
-                              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white"
-                              value={newDishForm.quantity}
-                              onChange={e => setNewDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                            />
-                          </div>
-                          <div className="w-28">
-                            <label className="text-xs font-semibold text-slate-500 mb-1 block">
-                              Price / {(selectedDish?.priceUnit || 'per plate').replace('per ', '')}
-                            </label>
-                            <input
-                              type="number"
-                              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white"
-                              value={newDishForm.pricePerPlate}
-                              onChange={e => setNewDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))}
-                            />
-                          </div>
-                          <button
-                            onClick={handleAddNewDish}
-                            disabled={newDishForm.quantity <= 0}
-                            className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-                          >
-                            Add
-                          </button>
-                          <button
-                            onClick={() => { setIsAddingDish(false); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }}
-                            className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300 transition"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()}
-                {enquiry.dishes.length > 0 ? (
-                  <div className="space-y-3">
-                    {enquiry.dishes.map((d: any) => (
-                      <div key={d.id} className="flex flex-col p-3 border border-slate-100 rounded-xl bg-slate-50/50">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                          <div className="mb-2 sm:mb-0 flex items-start gap-2">
-                            {d.dish?.ingredients?.length > 0 && (
-                              <button
-                                onClick={() => setExpandedDishId(expandedDishId === d.id ? null : d.id)}
-                                className="mt-1 p-0.5 text-slate-400 hover:text-slate-600 rounded bg-slate-100 hover:bg-slate-200"
-                              >
-                                {expandedDishId === d.id ? (
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                )}
-                              </button>
-                            )}
-                            <div>
-                              <p className="font-semibold text-slate-900">{d.dish?.name || '—'}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                {d.dish?.category && (
-                                  <span className="text-xs text-slate-500">{d.dish.category}</span>
-                                )}
-                                {d.dish?.priceUnit && (
-                                  <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
-                                    {d.dish.priceUnit}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                <div className="p-5">
 
-                          {editingDishId === d.id ? (
-                            <div className="flex items-center gap-2 bg-white p-2 border border-blue-200 rounded-lg shadow-sm">
-                              <input
-                                type="number"
-                                className="w-20 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
-                                value={editDishForm.quantity}
-                                onChange={e => setEditDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                                placeholder="Qty"
-                              />
-                              <span className="text-slate-400 text-sm">× ₹</span>
-                              <input
-                                type="number"
-                                className="w-24 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
-                                value={editDishForm.pricePerPlate}
-                                onChange={e => setEditDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))}
-                                placeholder="Price"
-                              />
-                              <button onClick={() => handleUpdateDish(d.id)} className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition">Save</button>
-                              <button onClick={() => setEditingDishId(null)} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition">Cancel</button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-4">
-                              {enquiry.status !== 'PENDING' && (
-                                <div className="text-right">
-                                  <p className="text-sm font-semibold text-slate-900">
-                                    {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')} × ₹{(Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0).toLocaleString()}
-                                  </p>
-                                  <p className="text-xs text-slate-500 font-medium">
-                                    Subtotal: ₹{(d.quantity * (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0)).toLocaleString()}
-                                  </p>
-                                </div>
-                              )}
-                              {!isTerminal && (
-                                <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
-                                  <button onClick={() => {
-                                    setEditingDishId(d.id)
-                                    setEditDishForm({ quantity: d.quantity, pricePerPlate: Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0 })
-                                  }} className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
-                                  <button onClick={() => handleRemoveDish(d.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
-                                </div>
-                              )}
-                            </div>
+                  {/* ══════════ MENU TAB ══════════ */}
+                  {activeTab === 'menu' && (
+                    <div className="space-y-6">
+
+                      {/* Dishes */}
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <UtensilsCrossed className="w-4 h-4 text-slate-500" />
+                            <h2 className="text-base font-semibold text-slate-900">Dishes</h2>
+                            <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{enquiry.dishes.length}</span>
+                          </div>
+                          {!isTerminal && (
+                            <button onClick={() => setIsAddingDish(!isAddingDish)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100">
+                              <Plus className="w-3.5 h-3.5" />Add Dish
+                            </button>
                           )}
                         </div>
-                        {expandedDishId === d.id && d.dish?.ingredients?.length > 0 && (
-                          <div className="mt-3 pl-8 py-2 border-t border-slate-100/50 flex flex-col gap-1">
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Sub-Items</p>
-                            {d.dish.ingredients.map((ing: any) => (
-                              <div key={ing.id} className="text-sm text-slate-600 flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                {ing.ingredientName}
+
+                        {isAddingDish && (() => {
+                          const allMapped = DISH_CATEGORIES.flatMap(c => c.dbCategories)
+                          const activeCat = DISH_CATEGORIES.find(c => c.label === addDishCategory)!
+                          const categoryDishes = activeCat.dbCategories.length === 0
+                            ? allDishes.filter(d => !allMapped.includes(d.category))
+                            : allDishes.filter(d => activeCat.dbCategories.includes(d.category))
+                          const selectedDish = allDishes.find(d => d.id === newDishForm.dishId)
+                          return (
+                            <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                              <div className="px-4 pt-3 pb-3 border-b border-slate-100 bg-slate-50/60">
+                                <label className="text-xs font-semibold text-slate-500 mb-1.5 block uppercase tracking-wide">Category</label>
+                                <select value={addDishCategory}
+                                  onChange={e => { setAddDishCategory(e.target.value); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }}
+                                  className="w-full px-3 py-2 text-sm font-medium text-slate-800 border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white appearance-none cursor-pointer">
+                                  {DISH_CATEGORIES.map(cat => <option key={cat.label} value={cat.label}>{cat.label}</option>)}
+                                </select>
+                              </div>
+                              <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
+                                {categoryDishes.length === 0 ? (
+                                  <p className="col-span-2 text-xs text-slate-400 text-center py-4">No dishes in this category.</p>
+                                ) : categoryDishes.map((dish: any) => (
+                                  <button key={dish.id}
+                                    onClick={() => setNewDishForm({ dishId: dish.id, quantity: 1, pricePerPlate: Number(dish.sellingPricePerPlate) || 0 })}
+                                    className={`flex items-center justify-between p-2.5 rounded-lg text-left text-sm transition-colors border ${
+                                      newDishForm.dishId === dish.id
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                                    }`}>
+                                    <span className="font-medium truncate">{dish.name}</span>
+                                    <span className="text-xs opacity-75 ml-2 shrink-0">₹{Number(dish.sellingPricePerPlate)} {dish.priceUnit || 'per plate'}</span>
+                                  </button>
+                                ))}
+                              </div>
+                              {newDishForm.dishId && (
+                                <div className="px-3 pb-3 pt-2 border-t border-blue-100 flex flex-wrap gap-3 items-end bg-blue-50/40">
+                                  <div className="w-24">
+                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Quantity</label>
+                                    <input type="number" min="1" value={newDishForm.quantity}
+                                      onChange={e => setNewDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))}
+                                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
+                                  </div>
+                                  <div className="w-28">
+                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Price / {(selectedDish?.priceUnit || 'per plate').replace('per ', '')}</label>
+                                    <input type="number" value={newDishForm.pricePerPlate}
+                                      onChange={e => setNewDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))}
+                                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
+                                  </div>
+                                  <button onClick={handleAddNewDish} disabled={newDishForm.quantity <= 0} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50">Add</button>
+                                  <button onClick={() => { setIsAddingDish(false); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }} className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300 transition">Cancel</button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
+
+                        {enquiry.dishes.length > 0 ? (
+                          <div className="space-y-2">
+                            {enquiry.dishes.map((d: any) => (
+                              <div key={d.id} className="flex flex-col p-3 border border-slate-100 rounded-xl bg-slate-50/50">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                                  <div className="mb-2 sm:mb-0 flex items-start gap-2">
+                                    {d.dish?.ingredients?.length > 0 && (
+                                      <button onClick={() => setExpandedDishId(expandedDishId === d.id ? null : d.id)}
+                                        className="mt-1 p-0.5 text-slate-400 hover:text-slate-600 rounded bg-slate-100 hover:bg-slate-200">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={expandedDishId === d.id ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                                        </svg>
+                                      </button>
+                                    )}
+                                    <div>
+                                      <p className="font-semibold text-slate-900">{d.dish?.name || '—'}</p>
+                                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                        {d.dish?.category && <span className="text-xs text-slate-500">{d.dish.category}</span>}
+                                        {d.dish?.priceUnit && <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">{d.dish.priceUnit}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {editingDishId === d.id ? (
+                                    <div className="flex items-center gap-2 bg-white p-2 border border-blue-200 rounded-lg shadow-sm">
+                                      <input type="number" className="w-20 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
+                                        value={editDishForm.quantity} onChange={e => setEditDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))} placeholder="Qty" />
+                                      <span className="text-slate-400 text-sm">× ₹</span>
+                                      <input type="number" className="w-24 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
+                                        value={editDishForm.pricePerPlate} onChange={e => setEditDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))} placeholder="Price" />
+                                      <button onClick={() => handleUpdateDish(d.id)} className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Save</button>
+                                      <button onClick={() => setEditingDishId(null)} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300">Cancel</button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-4">
+                                      {enquiry.status !== 'PENDING' && (
+                                        <div className="text-right">
+                                          <p className="text-sm font-semibold text-slate-900">
+                                            {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')} × ₹{(Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0).toLocaleString()}
+                                          </p>
+                                          <p className="text-xs text-slate-500 font-medium">
+                                            Subtotal: ₹{(d.quantity * (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0)).toLocaleString()}
+                                          </p>
+                                        </div>
+                                      )}
+                                      {!isTerminal && (
+                                        <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
+                                          <button onClick={() => { setEditingDishId(d.id); setEditDishForm({ quantity: d.quantity, pricePerPlate: Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0 }) }}
+                                            className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
+                                          <button onClick={() => handleRemoveDish(d.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                {expandedDishId === d.id && d.dish?.ingredients?.length > 0 && (
+                                  <div className="mt-3 pl-8 py-2 border-t border-slate-100/50 flex flex-col gap-1">
+                                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Sub-Items</p>
+                                    {d.dish.ingredients.map((ing: any) => (
+                                      <div key={ing.id} className="text-sm text-slate-600 flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                        {ing.ingredientName}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
+                        ) : (
+                          <p className="text-slate-400 text-sm text-center py-6">No dishes added</p>
                         )}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-400 text-sm text-center py-4">No dishes added</p>
-                )}
-              </div>
 
-              {/* Services */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-slate-900">Services (Visible to Admin Only)</h2>
-                  {!isTerminal && (
-                    <button
-                      onClick={() => setIsAddingService(!isAddingService)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100/50"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add Service
-                    </button>
-                  )}
-                </div>
-
-                {isAddingService && (
-                  <div className="mb-4 p-4 bg-blue-50/50 border border-blue-100 rounded-xl flex flex-wrap gap-3 items-end">
-                    <div className="flex-1 min-w-[200px]">
-                      <label className="text-xs font-semibold text-slate-500 mb-1 block">Service Name</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Waiters, DJ, Decoration"
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500"
-                        value={newServiceForm.serviceName}
-                        onChange={e => setNewServiceForm(prev => ({ ...prev, serviceName: e.target.value }))}
-                      />
-                    </div>
-                    <div className="w-32">
-                      <label className="text-xs font-semibold text-slate-500 mb-1 block">Total Price</label>
-                      <input
-                        type="number"
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500"
-                        value={newServiceForm.price}
-                        onChange={e => setNewServiceForm(prev => ({ ...prev, price: Number(e.target.value) }))}
-                      />
-                    </div>
-                    <button onClick={handleAddNewService} disabled={!newServiceForm.serviceName} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50">Add</button>
-                  </div>
-                )}
-                {enquiry.services.length > 0 ? (
-                  <div className="space-y-3">
-                    {enquiry.services.map((s: any) => (
-                      <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border border-slate-100 rounded-xl bg-slate-50/50">
-                        {editingServiceId === s.id ? (
-                          <div className="flex flex-wrap items-center gap-2 bg-white p-2 border border-blue-200 rounded-lg shadow-sm w-full">
-                            <input
-                              type="text"
-                              className="flex-1 min-w-[150px] px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
-                              value={editServiceForm.serviceName}
-                              onChange={e => setEditServiceForm(prev => ({ ...prev, serviceName: e.target.value }))}
-                            />
-                            <span className="text-slate-400 text-sm">₹</span>
-                            <input
-                              type="number"
-                              className="w-24 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
-                              value={editServiceForm.price}
-                              onChange={e => setEditServiceForm(prev => ({ ...prev, price: Number(e.target.value) }))}
-                            />
-                            <button onClick={() => handleUpdateService(s.id)} className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition">Save</button>
-                            <button onClick={() => setEditingServiceId(null)} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition">Cancel</button>
+                      {/* Services */}
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h2 className="text-base font-semibold text-slate-900">Services</h2>
+                          {!isTerminal && (
+                            <button onClick={() => setIsAddingService(!isAddingService)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100">
+                              <Plus className="w-3.5 h-3.5" />Add Service
+                            </button>
+                          )}
+                        </div>
+                        {isAddingService && (
+                          <div className="mb-4 p-4 bg-blue-50/50 border border-blue-100 rounded-xl flex flex-wrap gap-3 items-end">
+                            <div className="flex-1 min-w-[200px]">
+                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Service Name</label>
+                              <input type="text" placeholder="e.g. Waiters, DJ, Decoration"
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500"
+                                value={newServiceForm.serviceName} onChange={e => setNewServiceForm(prev => ({ ...prev, serviceName: e.target.value }))} />
+                            </div>
+                            <div className="w-32">
+                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Total Price</label>
+                              <input type="number" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500"
+                                value={newServiceForm.price} onChange={e => setNewServiceForm(prev => ({ ...prev, price: Number(e.target.value) }))} />
+                            </div>
+                            <button onClick={handleAddNewService} disabled={!newServiceForm.serviceName} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50">Add</button>
+                          </div>
+                        )}
+                        {enquiry.services.length > 0 ? (
+                          <div className="space-y-2">
+                            {enquiry.services.map((s: any) => (
+                              <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border border-slate-100 rounded-xl bg-slate-50/50">
+                                {editingServiceId === s.id ? (
+                                  <div className="flex flex-wrap items-center gap-2 bg-white p-2 border border-blue-200 rounded-lg shadow-sm w-full">
+                                    <input type="text" className="flex-1 min-w-[150px] px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
+                                      value={editServiceForm.serviceName} onChange={e => setEditServiceForm(prev => ({ ...prev, serviceName: e.target.value }))} />
+                                    <span className="text-slate-400 text-sm">₹</span>
+                                    <input type="number" className="w-24 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
+                                      value={editServiceForm.price} onChange={e => setEditServiceForm(prev => ({ ...prev, price: Number(e.target.value) }))} />
+                                    <button onClick={() => handleUpdateService(s.id)} className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Save</button>
+                                    <button onClick={() => setEditingServiceId(null)} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300">Cancel</button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="mb-2 sm:mb-0">
+                                      <p className="font-semibold text-slate-900">{s.serviceName}</p>
+                                      {s.description && <p className="text-xs text-slate-500">{s.description}</p>}
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                      {enquiry.status !== 'PENDING' && <p className="text-sm font-semibold text-slate-900">₹{Number(s.price).toLocaleString()}</p>}
+                                      {!isTerminal && (
+                                        <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
+                                          <button onClick={() => { setEditingServiceId(s.id); setEditServiceForm({ serviceName: s.serviceName, price: Number(s.price) }) }}
+                                            className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
+                                          <button onClick={() => handleRemoveService(s.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         ) : (
-                          <>
-                            <div className="mb-2 sm:mb-0">
-                              <p className="font-semibold text-slate-900">{s.serviceName}</p>
-                              {s.description && (
-                                <p className="text-xs text-slate-500">{s.description}</p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-4">
-                              {enquiry.status !== 'PENDING' && (
-                                <p className="text-sm font-semibold text-slate-900">
-                                  ₹{Number(s.price).toLocaleString()}
-                                </p>
-                              )}
-                              {!isTerminal && (
-                                <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
-                                  <button onClick={() => {
-                                    setEditingServiceId(s.id)
-                                    setEditServiceForm({ serviceName: s.serviceName, price: Number(s.price) })
-                                  }} className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
-                                  <button onClick={() => handleRemoveService(s.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
-                                </div>
-                              )}
-                            </div>
-                          </>
+                          <p className="text-slate-400 text-sm text-center py-4">No services added</p>
                         )}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-400 text-sm text-center py-4">No services added</p>
-                )}
-              </div>
 
-              {/* Total */}
-              {enquiry.status !== 'PENDING' && (
-                <div className="bg-slate-900 rounded-2xl p-6 text-white">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-300 font-medium">Total Quotation Amount</span>
-                    <span className="text-3xl font-bold">
-                      ₹{(dishesTotal + servicesTotal).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Converted Event Link */}
-              {enquiry.status === 'SUCCESS' && enquiry.convertedEvent && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <CalendarDays className="w-5 h-5 text-emerald-600" />
-                    <div>
-                      <p className="font-semibold text-emerald-900">Converted to Event</p>
-                      <p className="text-sm text-emerald-700">{enquiry.convertedEvent.name}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => router.push(`/events/${enquiry.convertedEvent.id}`)}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors"
-                  >
-                    View Event
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-6">
-
-              {/* Status Actions */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-                  Update Status
-                </h2>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => handleStatusUpdate('PENDING')}
-                    disabled={updating || enquiry.status === 'PENDING' || enquiry.status === 'SUCCESS'}
-                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'PENDING'
-                      ? 'bg-amber-100 text-amber-700 border-2 border-amber-300'
-                      : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <Clock className="w-4 h-4" />
-                    Pending
-                  </button>
-                  {enquiry.status === 'PENDING' ? (
-                    <button
-                      onClick={() => {
-                        const prices: Record<string, number> = {}
-                        enquiry.dishes.forEach((d: any) => {
-                          prices[d.id] = Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0
-                        })
-                        setFinalizeDishPrices(prices)
-                        setIsFinalizeModalOpen(true)
-                      }}
-                      disabled={updating}
-                      className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Set Prices & Quote
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleStatusUpdate('SUCCESS')}
-                      disabled={updating || enquiry.status === 'SUCCESS' || enquiry.status === 'LOST'}
-                      className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'SUCCESS'
-                        ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-300'
-                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Mark as Success
-                      {enquiry.status !== 'SUCCESS' && (
-                        <span className="ml-auto text-xs opacity-70">→ Creates Event</span>
-                      )}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleStatusUpdate('LOST')}
-                    disabled={updating || enquiry.status === 'LOST' || enquiry.status === 'SUCCESS'}
-                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'LOST'
-                      ? 'bg-red-100 text-red-700 border-2 border-red-300'
-                      : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Mark as Lost
-                  </button>
-                </div>
-              </div>
-
-              {/* Add Note */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-                  Add Note
-                </h2>
-                <textarea
-                  value={noteInput}
-                  onChange={e => setNoteInput(e.target.value)}
-                  placeholder="Add a note or update..."
-                  rows={3}
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent resize-none"
-                />
-                <button
-                  onClick={handleAddNote}
-                  disabled={addingNote || !noteInput.trim()}
-                  className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send className="w-4 h-4" />
-                  {addingNote ? 'Adding...' : 'Add Note'}
-                </button>
-              </div>
-
-              {/* Timeline */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-                  Activity Timeline
-                </h2>
-                {enquiry.updates && enquiry.updates.length > 0 ? (
-                  <div className="space-y-4">
-                    {enquiry.updates.map((update: any) => (
-                      <div key={update.id} className="flex items-start gap-3">
-                        <div className="mt-0.5 p-1.5 bg-slate-100 rounded-lg">
-                          {getUpdateIcon(update.updateType)}
+                      {/* Menu total */}
+                      {enquiry.status !== 'PENDING' && (
+                        <div className="bg-slate-900 rounded-xl p-4 text-white flex justify-between items-center">
+                          <span className="text-slate-300 font-medium">Menu Total</span>
+                          <span className="text-2xl font-bold">₹{(dishesTotal + servicesTotal).toLocaleString()}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-700">{update.description}</p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {new Date(update.createdAt).toLocaleDateString('en-IN', {
-                              day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                            })}
-                          </p>
+                      )}
+
+                      {/* Converted Event link */}
+                      {enquiry.status === 'SUCCESS' && enquiry.convertedEvent && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <CalendarDays className="w-5 h-5 text-emerald-600" />
+                            <div>
+                              <p className="font-semibold text-emerald-900">Converted to Event</p>
+                              <p className="text-sm text-emerald-700">{enquiry.convertedEvent.name}</p>
+                            </div>
+                          </div>
+                          <button onClick={() => router.push(`/events/${enquiry.convertedEvent.id}`)}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700">View Event</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ══════════ COSTING TAB ══════════ */}
+                  {activeTab === 'costing' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-base font-semibold text-slate-900">Internal Costing Sheet</h2>
+                          <p className="text-xs text-slate-500 mt-0.5">Manual cost breakdown — admin only</p>
+                        </div>
+                        {!isTerminal && (
+                          <button onClick={() => setIsAddingCostItem(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100">
+                            <Plus className="w-3.5 h-3.5" />Add Item
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Add form */}
+                      {isAddingCostItem && (
+                        <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl space-y-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Section</label>
+                              <select value={newCostItem.section} onChange={e => setNewCostItem(p => ({ ...p, section: e.target.value }))}
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white">
+                                {COST_SECTIONS.map(s => <option key={s}>{s}</option>)}
+                              </select>
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Item Name</label>
+                              <input type="text" placeholder="e.g. Chicken, Rice, Plates..." value={newCostItem.itemName}
+                                onChange={e => setNewCostItem(p => ({ ...p, itemName: e.target.value }))}
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Qty</label>
+                              <input type="number" min="0" value={newCostItem.qty} onChange={e => setNewCostItem(p => ({ ...p, qty: Number(e.target.value) }))}
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Unit</label>
+                              <input type="text" placeholder="kg, L, pcs..." value={newCostItem.unit}
+                                onChange={e => setNewCostItem(p => ({ ...p, unit: e.target.value }))}
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Rate (₹)</label>
+                              <input type="number" min="0" value={newCostItem.rate} onChange={e => setNewCostItem(p => ({ ...p, rate: Number(e.target.value) }))}
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-slate-700">Total: ₹{(newCostItem.qty * newCostItem.rate).toLocaleString()}</span>
+                            <div className="flex gap-2">
+                              <button onClick={() => { setIsAddingCostItem(false); setNewCostItem({ section: 'Grocery', itemName: '', qty: 1, unit: 'kg', rate: 0 }) }}
+                                className="px-3 py-1.5 text-sm bg-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-300">Cancel</button>
+                              <button onClick={handleAddCostItem} disabled={savingCost || !newCostItem.itemName}
+                                className="px-4 py-1.5 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">Save Item</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Items by section */}
+                      {costItems.length === 0 && !isAddingCostItem ? (
+                        <div className="text-center py-12 text-slate-400">
+                          <Calculator className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                          <p className="text-sm">No cost items yet. Click "Add Item" to start your costing sheet.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {COST_SECTIONS.map(section => {
+                            const items = costBySec[section]
+                            if (!items || items.length === 0) return null
+                            return (
+                              <div key={section} className="border border-slate-200 rounded-xl overflow-hidden">
+                                <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">{section}</span>
+                                  <span className="text-xs text-slate-400">₹{items.reduce((s: number, i: any) => s + Number(i.qty) * Number(i.rate), 0).toLocaleString()}</span>
+                                </div>
+                                <div className="divide-y divide-slate-100">
+                                  <div className="grid grid-cols-12 px-4 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide bg-white">
+                                    <div className="col-span-4">Item</div>
+                                    <div className="col-span-2 text-right">Qty</div>
+                                    <div className="col-span-1 text-center">Unit</div>
+                                    <div className="col-span-2 text-right">Rate</div>
+                                    <div className="col-span-2 text-right">Total</div>
+                                    <div className="col-span-1"></div>
+                                  </div>
+                                  {items.map((item: any) => (
+                                    <div key={item.id}>
+                                      {editingCostId === item.id ? (
+                                        <div className="p-3 bg-blue-50/40 space-y-2">
+                                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                            <div className="col-span-2">
+                                              <input type="text" value={editCostForm.itemName}
+                                                onChange={e => setEditCostForm(p => ({ ...p, itemName: e.target.value }))}
+                                                className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500" placeholder="Item name" />
+                                            </div>
+                                            <div>
+                                              <input type="number" value={editCostForm.qty}
+                                                onChange={e => setEditCostForm(p => ({ ...p, qty: Number(e.target.value) }))}
+                                                className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500" placeholder="Qty" />
+                                            </div>
+                                            <div>
+                                              <input type="text" value={editCostForm.unit}
+                                                onChange={e => setEditCostForm(p => ({ ...p, unit: e.target.value }))}
+                                                className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500" placeholder="Unit" />
+                                            </div>
+                                            <div>
+                                              <input type="number" value={editCostForm.rate}
+                                                onChange={e => setEditCostForm(p => ({ ...p, rate: Number(e.target.value) }))}
+                                                className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500" placeholder="Rate ₹" />
+                                            </div>
+                                            <div>
+                                              <select value={editCostForm.section} onChange={e => setEditCostForm(p => ({ ...p, section: e.target.value }))}
+                                                className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white">
+                                                {COST_SECTIONS.map(s => <option key={s}>{s}</option>)}
+                                              </select>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-sm font-semibold text-slate-700">Total: ₹{(editCostForm.qty * editCostForm.rate).toLocaleString()}</span>
+                                            <div className="flex gap-2">
+                                              <button onClick={() => setEditingCostId(null)} className="px-3 py-1 text-xs bg-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-300">Cancel</button>
+                                              <button onClick={() => handleUpdateCostItem(item.id)} disabled={savingCost} className="px-3 py-1 text-xs bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">Save</button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="grid grid-cols-12 px-4 py-2.5 items-center hover:bg-slate-50 transition-colors">
+                                          <div className="col-span-4 font-medium text-slate-800 text-sm truncate">{item.itemName}</div>
+                                          <div className="col-span-2 text-right text-sm text-slate-600">{Number(item.qty)}</div>
+                                          <div className="col-span-1 text-center text-xs text-slate-500">{item.unit}</div>
+                                          <div className="col-span-2 text-right text-sm text-slate-600">₹{Number(item.rate).toLocaleString()}</div>
+                                          <div className="col-span-2 text-right text-sm font-semibold text-slate-800">₹{(Number(item.qty) * Number(item.rate)).toLocaleString()}</div>
+                                          {!isTerminal ? (
+                                            <div className="col-span-1 flex justify-end gap-1.5">
+                                              <button onClick={() => { setEditingCostId(item.id); setEditCostForm({ section: item.section, itemName: item.itemName, qty: Number(item.qty), unit: item.unit, rate: Number(item.rate) }) }}
+                                                className="text-xs text-blue-600 hover:underline font-bold">Edit</button>
+                                              <button onClick={() => handleDeleteCostItem(item.id)} className="text-red-400 hover:text-red-600">
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                          ) : <div className="col-span-1" />}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {costItems.length > 0 && (
+                        <div className="flex justify-between items-center p-4 bg-slate-900 text-white rounded-xl">
+                          <span className="font-semibold text-slate-300">Total Internal Cost</span>
+                          <span className="text-2xl font-bold">₹{internalCostTotal.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ══════════ PRICING TAB ══════════ */}
+                  {activeTab === 'pricing' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900">Pricing</h2>
+                        <p className="text-xs text-slate-500 mt-0.5">Set the final selling price to quote the client</p>
+                      </div>
+
+                      {/* Internal cost read-only */}
+                      <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Internal Cost</p>
+                          <p className="text-xs text-slate-400 mt-0.5">From Costing sheet</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-bold text-slate-800">₹{internalCostTotal.toLocaleString()}</p>
+                          {internalCostTotal === 0 && <p className="text-xs text-amber-500 mt-0.5">No items in Costing tab yet</p>}
                         </div>
                       </div>
-                    ))}
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-semibold text-slate-700 mb-1.5 block">Final Selling Price (₹)</label>
+                          <input type="number" min="0" value={finalPrice} onChange={e => setFinalPrice(Number(e.target.value))}
+                            className="w-full px-4 py-3 text-lg font-semibold border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="0" />
+                        </div>
+                        <div>
+                          <label className="text-sm font-semibold text-slate-700 mb-1.5 block">Advance Amount (₹)</label>
+                          <input type="number" min="0" value={advanceAmount} onChange={e => setAdvanceAmount(Number(e.target.value))}
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="0" />
+                        </div>
+                        <div>
+                          <label className="text-sm font-semibold text-slate-700 mb-1.5 block">Payment Terms</label>
+                          <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
+                            placeholder="e.g. 50% advance, balance on event day"
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm" />
+                        </div>
+                      </div>
+
+                      {finalPrice > 0 && (
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
+                            <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">Selling</p>
+                            <p className="text-base font-bold text-emerald-800 mt-1">₹{finalPrice.toLocaleString()}</p>
+                          </div>
+                          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-center">
+                            <p className="text-xs text-red-600 font-semibold uppercase tracking-wide">Cost</p>
+                            <p className="text-base font-bold text-red-800 mt-1">₹{internalCostTotal.toLocaleString()}</p>
+                          </div>
+                          <div className={`p-3 border rounded-xl text-center ${margin >= 20 ? 'bg-blue-50 border-blue-100' : 'bg-amber-50 border-amber-100'}`}>
+                            <p className={`text-xs font-semibold uppercase tracking-wide ${margin >= 20 ? 'text-blue-600' : 'text-amber-600'}`}>Margin</p>
+                            <p className={`text-base font-bold mt-1 ${margin >= 20 ? 'text-blue-800' : 'text-amber-800'}`}>{margin.toFixed(1)}%</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {!isTerminal && (
+                        <button onClick={handleSavePricing} disabled={savingPricing || finalPrice <= 0}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                          <CheckCircle className="w-5 h-5" />
+                          {savingPricing ? 'Saving...' : enquiry.status === 'PENDING' ? 'Save & Mark as Price Quoted' : 'Update Pricing'}
+                        </button>
+                      )}
+
+                      {enquiry.status === 'PRICE_QUOTED' && Number(enquiry.finalPrice) > 0 && (
+                        <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-sm text-indigo-700 font-medium text-center">
+                          Quoted: ₹{Number(enquiry.finalPrice).toLocaleString()}
+                          {Number(enquiry.advanceAmount) > 0 && ` · Advance: ₹${Number(enquiry.advanceAmount).toLocaleString()}`}
+                          {enquiry.paymentTerms && ` · ${enquiry.paymentTerms}`}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ══════════ HISTORY TAB ══════════ */}
+                  {activeTab === 'history' && (
+                    <div className="space-y-6">
+                      <div>
+                        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Add Note</h2>
+                        <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)}
+                          placeholder="Add a note or update..." rows={3}
+                          className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent resize-none" />
+                        <button onClick={handleAddNote} disabled={addingNote || !noteInput.trim()}
+                          className="mt-3 flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                          <Send className="w-4 h-4" />
+                          {addingNote ? 'Adding...' : 'Add Note'}
+                        </button>
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Activity Timeline</h2>
+                        {enquiry.updates && enquiry.updates.length > 0 ? (
+                          <div className="space-y-4">
+                            {enquiry.updates.map((update: any) => (
+                              <div key={update.id} className="flex items-start gap-3">
+                                <div className="mt-0.5 p-1.5 bg-slate-100 rounded-lg">{getUpdateIcon(update.updateType)}</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-slate-700">{update.description}</p>
+                                  <p className="text-xs text-slate-400 mt-1">
+                                    {new Date(update.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-400 text-sm text-center py-4">No activity yet</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT: Status + Summary */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Update Status</h2>
+                <div className="space-y-2">
+                  <button onClick={() => handleStatusUpdate('PENDING')}
+                    disabled={updating || enquiry.status === 'PENDING' || isTerminal}
+                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'PENDING' ? 'bg-amber-100 text-amber-700 border-2 border-amber-300' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                    <Clock className="w-4 h-4" />Planning
+                  </button>
+                  <button onClick={() => handleStatusUpdate('SUCCESS')}
+                    disabled={updating || isTerminal}
+                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-300' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                    <CheckCircle className="w-4 h-4" />
+                    Confirm & Convert
+                    {enquiry.status !== 'SUCCESS' && <span className="ml-auto text-xs opacity-60">→ Event</span>}
+                  </button>
+                  <button onClick={() => handleStatusUpdate('LOST')}
+                    disabled={updating || isTerminal}
+                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'LOST' ? 'bg-red-100 text-red-700 border-2 border-red-300' : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                    <XCircle className="w-4 h-4" />Mark as Lost
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Summary */}
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Summary</h2>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Menu Total</span>
+                    <span className="font-semibold">₹{(dishesTotal + servicesTotal).toLocaleString()}</span>
                   </div>
-                ) : (
-                  <p className="text-slate-400 text-sm text-center py-4">No activity yet</p>
-                )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Internal Cost</span>
+                    <span className="font-semibold">₹{internalCostTotal.toLocaleString()}</span>
+                  </div>
+                  {finalPrice > 0 && (
+                    <>
+                      <div className="flex justify-between border-t border-slate-100 pt-2 mt-2">
+                        <span className="text-slate-700 font-semibold">Quoted Price</span>
+                        <span className="font-bold text-indigo-700">₹{finalPrice.toLocaleString()}</span>
+                      </div>
+                      {advanceAmount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Advance</span>
+                          <span className="font-semibold text-emerald-600">₹{advanceAmount.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -888,40 +957,28 @@ Please let us know if you have any questions!
           <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl border border-slate-200">
             <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
               <h3 className="text-lg font-semibold text-slate-900">Download Quotation</h3>
-              <button
-                onClick={() => setIsDownloadModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
-              >
+              <button onClick={() => setIsDownloadModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 space-y-5">
-              <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={downloadIncludeSubItems}
-                  onChange={e => setDownloadIncludeSubItems(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-600 focus:ring-2"
-                />
-                <div className="flex flex-col">
+              <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" checked={downloadIncludeSubItems} onChange={e => setDownloadIncludeSubItems(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded border-slate-300" />
+                <div>
                   <span className="text-sm font-semibold text-slate-900">Include Sub-items</span>
-                  <span className="text-xs text-slate-500">List dish ingredients on the document</span>
+                  <p className="text-xs text-slate-500">List dish ingredients on the document</p>
                 </div>
               </label>
-
               <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleDownloadMenu('pdf')}
-                  className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-slate-200 hover:border-red-500 hover:bg-red-50 rounded-xl transition-all group"
-                >
-                  <FileText className="w-8 h-8 text-slate-400 group-hover:text-red-500 transition-colors" />
+                <button onClick={() => handleDownloadMenu('pdf')}
+                  className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-slate-200 hover:border-red-500 hover:bg-red-50 rounded-xl transition-all group">
+                  <FileText className="w-8 h-8 text-slate-400 group-hover:text-red-500" />
                   <span className="text-sm font-semibold text-slate-700 group-hover:text-red-600">PDF</span>
                 </button>
-                <button
-                  onClick={() => handleDownloadMenu('excel')}
-                  className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 rounded-xl transition-all group"
-                >
-                  <svg className="w-8 h-8 text-slate-400 group-hover:text-emerald-500 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                <button onClick={() => handleDownloadMenu('excel')}
+                  className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 rounded-xl transition-all group">
+                  <svg className="w-8 h-8 text-slate-400 group-hover:text-emerald-500" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 3.5L18.5 9H13V3.5zM10.15 15.68l-1.92-2.61-1.85 2.61H4.8l2.92-3.8-2.73-3.6h1.61l1.73 2.4 1.7-2.4h1.57l-2.67 3.65 2.85 3.75h-1.63z" />
                   </svg>
                   <span className="text-sm font-semibold text-slate-700 group-hover:text-emerald-600">Excel (XLSX)</span>
@@ -931,140 +988,6 @@ Please let us know if you have any questions!
           </div>
         </div>
       )}
-
-      {/* Finalize Prices Modal */}
-      {isFinalizeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Finalize Prices</h3>
-                <p className="text-sm text-slate-500 mt-1">Review and set final prices before marking as Success.</p>
-              </div>
-              <button
-                onClick={() => setIsFinalizeModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                <XCircle className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto flex-1 space-y-6">
-              {enquiry.dishes.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-bold tracking-wider text-slate-500 uppercase mb-3">Dishes</h4>
-                  <div className="space-y-3">
-                    {enquiry.dishes.map((d: any) => (
-                      <div key={d.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
-                        <div className="flex-1">
-                          <p className="font-semibold text-slate-900">{d.dish?.name || '—'}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-xs text-slate-500">
-                              {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')}
-                            </span>
-                            {d.dish?.priceUnit && (
-                              <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
-                                {d.dish.priceUnit}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <label className="text-xs font-semibold text-slate-500">
-                            Price / {(d.dish?.priceUnit || 'per plate').replace('per ', '')}
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₹</span>
-                            <input
-                              type="number"
-                              className="w-28 pl-7 pr-3 py-2 text-sm font-semibold border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                              value={finalizeDishPrices[d.id] ?? (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0)}
-                              onChange={e => setFinalizeDishPrices(prev => ({ ...prev, [d.id]: Number(e.target.value) }))}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {enquiry.services.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-bold tracking-wider text-slate-500 uppercase mb-3">Services</h4>
-                  <div className="space-y-3">
-                    {enquiry.services.map((s: any) => (
-                      <div key={s.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
-                        <div className="flex-1">
-                          <p className="font-semibold text-slate-900">{s.serviceName}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <label className="text-xs font-semibold text-slate-500">Total Price</label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₹</span>
-                            <input
-                              type="number"
-                              className="w-28 pl-7 pr-3 py-2 text-sm font-semibold border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                              value={finalizeServicePrices[s.id] ?? s.price}
-                              onChange={e => setFinalizeServicePrices(prev => ({ ...prev, [s.id]: Number(e.target.value) }))}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-sm text-slate-500 font-medium">Estimated Total</span>
-                <span className="text-xl font-bold text-slate-900">
-                  ₹{
-                    (enquiry.dishes.reduce((sum: number, d: any) => sum + (d.quantity * (finalizeDishPrices[d.id] ?? (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0))), 0) +
-                      enquiry.services.reduce((sum: number, s: any) => sum + (finalizeServicePrices[s.id] ?? Number(s.price)), 0)).toLocaleString()
-                  }
-                </span>
-              </div>
-              <button
-                onClick={async () => {
-                  if (!user) return
-                  setUpdating(true)
-                  try {
-                    // Update all dish prices concurrently
-                    await Promise.all(enquiry.dishes.map((d: any) => {
-                      if (finalizeDishPrices[d.id] !== undefined && finalizeDishPrices[d.id] !== Number(d.pricePerPlate)) {
-                        return updateEnquiryDish(d.id, id, { quantity: d.quantity, pricePerPlate: finalizeDishPrices[d.id] })
-                      }
-                    }))
-
-                    // Update all service prices concurrently
-                    await Promise.all(enquiry.services.map((s: any) => {
-                      if (finalizeServicePrices[s.id] !== undefined && finalizeServicePrices[s.id] !== Number(s.price)) {
-                        return updateEnquiryService(s.id, id, { serviceName: s.serviceName, price: finalizeServicePrices[s.id] })
-                      }
-                    }))
-
-                    // Finally update status to PRICE_QUOTED
-                    await updateEnquiryStatus(id, 'PRICE_QUOTED', user.id)
-                    setIsFinalizeModalOpen(false)
-                    loadEnquiry()
-                  } catch (e) {
-                    console.error('Failed to finalize pricing', e)
-                  }
-                  setUpdating(false)
-                }}
-                disabled={updating}
-                className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
-              >
-                {updating ? 'Confirming...' : 'Save & Quote Pricing'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </PageLayout>
   )
 }

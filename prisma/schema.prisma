@@ -68,6 +68,11 @@ model Enquiry {
   quotationNumber String     @unique
   totalAmount     Decimal    @default(0)
 
+  // Pricing (set in Pricing tab)
+  finalPrice     Decimal  @default(0)
+  advanceAmount  Decimal  @default(0)
+  paymentTerms   String   @default("")
+
   // Status
   status        EnquiryStatus @default(PENDING)
 
@@ -79,6 +84,7 @@ model Enquiry {
   dishes        EnquiryDish[]
   services      EnquiryService[]
   updates       EnquiryUpdate[]
+  costItems     CostItem[]
   createdBy     User          @relation("CreatedBy", fields: [createdById], references: [id])
   createdById   String
 
@@ -165,6 +171,14 @@ model Event {
   totalAmount     Decimal      @default(0)
   paidAmount      Decimal      @default(0)
   balanceAmount   Decimal      @default(0)
+  internalCost    Decimal      @default(0)
+  advanceAmount   Decimal      @default(0)
+
+  // Pre-event checklist
+  checklistGrocery    Boolean  @default(false)
+  checklistRentals    Boolean  @default(false)
+  checklistStaff      Boolean  @default(false)
+  checklistTransport  Boolean  @default(false)
 
   // Additional Details
   notes           String?
@@ -179,6 +193,7 @@ model Event {
   expenses        OtherExpense[]
   groceryItems    GroceryPurchaseItem[]
   invoices        Invoice[]
+  costItems       CostItem[]
 
   createdBy       User         @relation("CreatedBy", fields: [createdById], references: [id])
   createdById     String
@@ -215,6 +230,27 @@ model EventService {
 
   event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
+  @@index([eventId])
+}
+
+// Manual Costing Sheet Items (linked to Enquiry OR Event)
+model CostItem {
+  id         String   @id @default(cuid())
+  enquiryId  String?
+  eventId    String?
+  section    String   // "Grocery" | "Meat" | "Vegetables" | "Rentals" | "Labour" | "Others"
+  itemName   String
+  qty        Decimal  @default(0)
+  unit       String   @default("")
+  rate       Decimal  @default(0)
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  enquiry    Enquiry? @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId])
   @@index([eventId])
 }
 
