@@ -21,6 +21,23 @@ interface ServiceItem {
     price: number
 }
 
+// Compute internal cost for a dish:
+// If it has linked global ingredients with pricePerUnit → sum(qty × pricePerUnit)
+// Otherwise → estimatedCostPerPlate
+function computeDishCost(dish: any): number {
+    if (!dish) return 0
+    const linked = (dish.ingredients || []).filter(
+        (i: any) => i.ingredient && Number(i.ingredient.pricePerUnit) > 0
+    )
+    if (linked.length > 0) {
+        return linked.reduce(
+            (sum: number, i: any) => sum + Number(i.quantity) * Number(i.ingredient.pricePerUnit),
+            0
+        )
+    }
+    return Number(dish.estimatedCostPerPlate) || 0
+}
+
 // Maps UI category labels → actual DB category strings
 const CATEGORY_DB_MAP: Record<string, string[]> = {
     'WELCOME DRINK':  ['Welcome Drink'],
@@ -73,7 +90,7 @@ export default function NewEnquiryPage() {
                     dishId: dishes[0].id,
                     dishName: dishes[0].name,
                     quantity: parseInt(formData.peopleCount) || 1,
-                    pricePerPlate: Number(dishes[0].sellingPricePerPlate || dishes[0].pricePerPlate),
+                    pricePerPlate: computeDishCost(dishes[0]),
                 },
             ])
         }
@@ -88,7 +105,7 @@ export default function NewEnquiryPage() {
                     ...updated[index],
                     dishId: value,
                     dishName: dish.name,
-                    pricePerPlate: Number(dish.sellingPricePerPlate || dish.pricePerPlate),
+                    pricePerPlate: computeDishCost(dish),
                 }
             }
         } else {
@@ -370,7 +387,7 @@ export default function NewEnquiryPage() {
                                                                 dishId: categoryDishes[0].id,
                                                                 dishName: categoryDishes[0].name,
                                                                 quantity: parseInt(formData.peopleCount) || 1,
-                                                                pricePerPlate: Number(categoryDishes[0].sellingPricePerPlate || categoryDishes[0].pricePerPlate),
+                                                                pricePerPlate: computeDishCost(categoryDishes[0]),
                                                             },
                                                         ])
                                                     }
@@ -397,6 +414,9 @@ export default function NewEnquiryPage() {
                                                                 </option>
                                                             ))}
                                                         </select>
+                                                        <span className="shrink-0 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-2 rounded-lg whitespace-nowrap">
+                                                            ₹{dish.pricePerPlate.toLocaleString()} / plate
+                                                        </span>
                                                         <input
                                                             type="number"
                                                             min="1"

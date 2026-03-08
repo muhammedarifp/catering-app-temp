@@ -96,7 +96,21 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
       setOccasion(Array.isArray(result.data.occasion) ? (result.data.occasion[0] || '') : (result.data.occasion || ''))
       setServiceType(Array.isArray(result.data.serviceType) ? (result.data.serviceType[0] || '') : (result.data.serviceType || ''))
       setCostItems(result.data.costItems || [])
-      setFinalPrice(result.data.finalPrice || 0)
+      const savedFinalPrice = result.data.finalPrice || 0
+      if (savedFinalPrice > 0) {
+        setFinalPrice(savedFinalPrice)
+      } else {
+        // Auto-calculate from menu dishes + services
+        const dishesSum = (result.data.dishes || []).reduce((s: number, d: any) => {
+          const linked = (d.dish?.ingredients || []).filter((i: any) => i.ingredient && Number(i.ingredient.pricePerUnit) > 0)
+          const cost = linked.length > 0
+            ? linked.reduce((sum: number, i: any) => sum + Number(i.quantity) * Number(i.ingredient.pricePerUnit), 0)
+            : Number(d.dish?.estimatedCostPerPlate) || 0
+          return s + d.quantity * (Number(d.pricePerPlate) || cost)
+        }, 0)
+        const servicesSum = (result.data.services || []).reduce((s: number, sv: any) => s + Number(sv.price), 0)
+        setFinalPrice(dishesSum + servicesSum)
+      }
       setAdvanceAmount(result.data.advanceAmount || 0)
       setPaymentTerms(result.data.paymentTerms || '')
     }
@@ -190,7 +204,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
     setSavingPricing(false)
   }
 
-  const handleDownloadMenu = (format: 'pdf' | 'excel') => {
+  const handleDownloadMenu = (format: 'pdf' | 'excel' | 'word') => {
     if (!enquiry) return
     const payload = {
       status: enquiry.status,
@@ -209,6 +223,8 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
     }
     if (format === 'excel') {
       import('@/lib/invoice-excel').then(m => m.downloadMenuExcel(payload))
+    } else if (format === 'word') {
+      import('@/lib/invoice-excel').then(m => m.downloadMenuWord(payload))
     } else {
       downloadMenu(payload)
     }
@@ -223,6 +239,21 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
         enquiry.services.reduce((s: number, sv: any) => s + Number(sv.price), 0)
     const text = `*Quotation from CaterPro*\nQuotation No: ${enquiry.quotationNumber}\nEvent Date: ${new Date(enquiry.eventDate).toLocaleDateString()}\nGuests: ${enquiry.peopleCount}\nTotal: ₹${total.toLocaleString()}\n\nPlease let us know if you have any questions!`
     window.open(`https://wa.me/${enquiry.clientContact}?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
+  // Cost price: use linked ingredient sum if available, else estimatedCostPerPlate
+  function computeDishCost(dish: any): number {
+    if (!dish) return 0
+    const linked = (dish.ingredients || []).filter(
+      (i: any) => i.ingredient && Number(i.ingredient.pricePerUnit) > 0
+    )
+    if (linked.length > 0) {
+      return linked.reduce(
+        (sum: number, i: any) => sum + Number(i.quantity) * Number(i.ingredient.pricePerUnit),
+        0
+      )
+    }
+    return Number(dish.estimatedCostPerPlate) || 0
   }
 
   const getStatusBadge = (status: string) => {
@@ -263,7 +294,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
   )
 
   const isTerminal = enquiry.status === 'SUCCESS' || enquiry.status === 'LOST'
-  const dishesTotal = enquiry.dishes.reduce((s: number, d: any) => s + d.quantity * (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0), 0)
+  const dishesTotal = enquiry.dishes.reduce((s: number, d: any) => s + d.quantity * (Number(d.pricePerPlate) || computeDishCost(d.dish)), 0)
   const servicesTotal = enquiry.services.reduce((s: number, sv: any) => s + Number(sv.price), 0)
   const internalCostTotal = costItems.reduce((s: number, c: any) => s + Number(c.qty) * Number(c.rate), 0)
   const margin = finalPrice > 0 ? ((finalPrice - internalCostTotal) / finalPrice * 100) : 0
@@ -386,12 +417,18 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                             <h2 className="text-base font-semibold text-slate-900">Dishes</h2>
                             <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{enquiry.dishes.length}</span>
                           </div>
-                          {!isTerminal && (
-                            <button onClick={() => setIsAddingDish(!isAddingDish)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100">
-                              <Plus className="w-3.5 h-3.5" />Add Dish
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setIsDownloadModalOpen(true)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 rounded-lg transition-colors border border-slate-200">
+                              <Download className="w-3.5 h-3.5" />Download
                             </button>
-                          )}
+                            {!isTerminal && (
+                              <button onClick={() => setIsAddingDish(!isAddingDish)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100">
+                                <Plus className="w-3.5 h-3.5" />Add Dish
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {isAddingDish && (() => {
@@ -416,14 +453,14 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                                   <p className="col-span-2 text-xs text-slate-400 text-center py-4">No dishes in this category.</p>
                                 ) : categoryDishes.map((dish: any) => (
                                   <button key={dish.id}
-                                    onClick={() => setNewDishForm({ dishId: dish.id, quantity: 1, pricePerPlate: Number(dish.sellingPricePerPlate) || 0 })}
+                                    onClick={() => setNewDishForm({ dishId: dish.id, quantity: 1, pricePerPlate: computeDishCost(dish) })}
                                     className={`flex items-center justify-between p-2.5 rounded-lg text-left text-sm transition-colors border ${
                                       newDishForm.dishId === dish.id
                                         ? 'bg-blue-600 text-white border-blue-600'
                                         : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
                                     }`}>
                                     <span className="font-medium truncate">{dish.name}</span>
-                                    <span className="text-xs opacity-75 ml-2 shrink-0">₹{Number(dish.sellingPricePerPlate)} {dish.priceUnit || 'per plate'}</span>
+                                    <span className="text-xs opacity-75 ml-2 shrink-0">₹{computeDishCost(dish)} {dish.priceUnit || 'per plate'}</span>
                                   </button>
                                 ))}
                               </div>
@@ -486,16 +523,16 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                                       {enquiry.status !== 'PENDING' && (
                                         <div className="text-right">
                                           <p className="text-sm font-semibold text-slate-900">
-                                            {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')} × ₹{(Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0).toLocaleString()}
+                                            {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')} × ₹{(Number(d.pricePerPlate) || computeDishCost(d.dish)).toLocaleString()}
                                           </p>
                                           <p className="text-xs text-slate-500 font-medium">
-                                            Subtotal: ₹{(d.quantity * (Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0)).toLocaleString()}
+                                            Subtotal: ₹{(d.quantity * (Number(d.pricePerPlate) || computeDishCost(d.dish))).toLocaleString()}
                                           </p>
                                         </div>
                                       )}
                                       {!isTerminal && (
                                         <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
-                                          <button onClick={() => { setEditingDishId(d.id); setEditDishForm({ quantity: d.quantity, pricePerPlate: Number(d.pricePerPlate) || Number(d.dish?.sellingPricePerPlate) || 0 }) }}
+                                          <button onClick={() => { setEditingDishId(d.id); setEditDishForm({ quantity: d.quantity, pricePerPlate: Number(d.pricePerPlate) || computeDishCost(d.dish) }) }}
                                             className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
                                           <button onClick={() => handleRemoveDish(d.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
                                         </div>
@@ -798,6 +835,28 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                       </div>
 
+                      {/* Menu Total reference */}
+                      {(dishesTotal + servicesTotal) > 0 && (
+                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                          <div>
+                            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Calculated from Menu</p>
+                            <p className="text-xs text-blue-400 mt-0.5">Dishes + Services total</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className="text-xl font-bold text-blue-800">₹{(dishesTotal + servicesTotal).toLocaleString()}</p>
+                            {finalPrice !== dishesTotal + servicesTotal && (
+                              <button
+                                type="button"
+                                onClick={() => setFinalPrice(dishesTotal + servicesTotal)}
+                                className="text-xs font-semibold text-blue-600 bg-white border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap"
+                              >
+                                Use ↑
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-4">
                         <div>
                           <label className="text-sm font-semibold text-slate-700 mb-1.5 block">Final Selling Price (₹)</label>
@@ -970,18 +1029,25 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                   <p className="text-xs text-slate-500">List dish ingredients on the document</p>
                 </div>
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <button onClick={() => handleDownloadMenu('pdf')}
                   className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-slate-200 hover:border-red-500 hover:bg-red-50 rounded-xl transition-all group">
-                  <FileText className="w-8 h-8 text-slate-400 group-hover:text-red-500" />
-                  <span className="text-sm font-semibold text-slate-700 group-hover:text-red-600">PDF</span>
+                  <FileText className="w-7 h-7 text-slate-400 group-hover:text-red-500" />
+                  <span className="text-xs font-semibold text-slate-700 group-hover:text-red-600">PDF</span>
+                </button>
+                <button onClick={() => handleDownloadMenu('word')}
+                  className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl transition-all group">
+                  <svg className="w-7 h-7 text-slate-400 group-hover:text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 3.5L18.5 9H13V3.5zM7 13h2.5l1 3.5 1-3.5H14l-2 5H9.5L7 13z"/>
+                  </svg>
+                  <span className="text-xs font-semibold text-slate-700 group-hover:text-blue-600">Word (.doc)</span>
                 </button>
                 <button onClick={() => handleDownloadMenu('excel')}
                   className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 rounded-xl transition-all group">
-                  <svg className="w-8 h-8 text-slate-400 group-hover:text-emerald-500" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-7 h-7 text-slate-400 group-hover:text-emerald-500" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 3.5L18.5 9H13V3.5zM10.15 15.68l-1.92-2.61-1.85 2.61H4.8l2.92-3.8-2.73-3.6h1.61l1.73 2.4 1.7-2.4h1.57l-2.67 3.65 2.85 3.75h-1.63z" />
                   </svg>
-                  <span className="text-sm font-semibold text-slate-700 group-hover:text-emerald-600">Excel (XLSX)</span>
+                  <span className="text-xs font-semibold text-slate-700 group-hover:text-emerald-600">Excel (XLSX)</span>
                 </button>
               </div>
             </div>
