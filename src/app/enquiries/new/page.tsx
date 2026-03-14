@@ -21,8 +21,22 @@ interface ServiceItem {
     price: number
 }
 
+// Convert ingredient qty to ingredient's base unit before pricing
+function convertToBaseUnit(qty: number, fromUnit: string, toUnit: string): number {
+    const f = fromUnit.toLowerCase().trim()
+    const t = toUnit.toLowerCase().trim()
+    if (f === t) return qty
+    if (f === 'g'  && t === 'kg') return qty / 1000
+    if (f === 'kg' && t === 'g')  return qty * 1000
+    if (f === 'mg' && t === 'kg') return qty / 1_000_000
+    if (f === 'mg' && t === 'g')  return qty / 1000
+    if (f === 'ml' && (t === 'l' || t === 'litre' || t === 'liter')) return qty / 1000
+    if ((f === 'l' || f === 'litre' || f === 'liter') && t === 'ml') return qty * 1000
+    return qty
+}
+
 // Compute internal cost for a dish:
-// If it has linked global ingredients with pricePerUnit → sum(qty × pricePerUnit)
+// If it has linked global ingredients with pricePerUnit → sum(convertedQty × pricePerUnit)
 // Otherwise → estimatedCostPerPlate
 function computeDishCost(dish: any): number {
     if (!dish) return 0
@@ -31,7 +45,10 @@ function computeDishCost(dish: any): number {
     )
     if (linked.length > 0) {
         return linked.reduce(
-            (sum: number, i: any) => sum + Number(i.quantity) * Number(i.ingredient.pricePerUnit),
+            (sum: number, i: any) => {
+                const convertedQty = convertToBaseUnit(Number(i.quantity), i.unit || '', i.ingredient.unit || '')
+                return sum + convertedQty * Number(i.ingredient.pricePerUnit)
+            },
             0
         )
     }

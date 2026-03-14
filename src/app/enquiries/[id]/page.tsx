@@ -1,22 +1,25 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, CheckCircle, XCircle, Clock, MapPin, Calendar, Users, Phone,
   FileText, Send, Download, CalendarDays, Plus, Share2, UtensilsCrossed,
-  Trash2, Calculator, DollarSign, History
+  Trash2, Calculator, DollarSign, History, RotateCcw, Lock, Loader2, X,
+  ChevronRight, AlertTriangle, Table2, Maximize2, Minimize2, RefreshCw
 } from 'lucide-react'
 import PageLayout from '@/components/PageLayout'
 import {
   getEnquiryById, updateEnquiryStatus, addEnquiryUpdate, updateEnquiryDetails,
   removeEnquiryDish, removeEnquiryService, updateEnquiryDish, updateEnquiryService,
-  addEnquiryDish, addEnquiryService, updateEnquiryPricing
+  addEnquiryDish, addEnquiryService, updateEnquiryPricing, reviseEnquiry
 } from '@/lib/actions/enquiries'
-import { addCostItem, updateCostItem, deleteCostItem } from '@/lib/actions/costing'
+import { addCostItem, updateCostItem, deleteCostItem, syncGroceryFromMenu } from '@/lib/actions/costing'
 import { getDishes } from '@/lib/actions/dishes'
 import { useAuth } from '@/contexts/AuthContext'
 import { downloadMenu } from '@/lib/invoice-pdf'
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const DISH_CATEGORIES: { label: string; dbCategories: string[] }[] = [
   { label: 'Welcome Drink', dbCategories: ['Welcome Drink'] },
@@ -34,174 +37,587 @@ const DISH_CATEGORIES: { label: string; dbCategories: string[] }[] = [
 
 const COST_SECTIONS = ['Grocery', 'Meat', 'Vegetables', 'Rentals', 'Labour', 'Others']
 
+// ─── Toast system ─────────────────────────────────────────────────────────────
+
+type ToastItem = { id: string; type: 'success' | 'error' | 'info'; message: string }
+
+function ToastStack({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: (id: string) => void }) {
+  if (toasts.length === 0) return null
+  return (
+    <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 pointer-events-none">
+      {toasts.map(t => (
+        <div key={t.id}
+          className={`pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border bg-white min-w-[240px] max-w-[320px]
+            border-l-4 transition-all
+            ${t.type === 'success' ? 'border-l-emerald-500' : t.type === 'error' ? 'border-l-red-500' : 'border-l-indigo-500'}`}>
+          <div className="mt-0.5 shrink-0">
+            {t.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-500" />}
+            {t.type === 'error'   && <XCircle className="w-4 h-4 text-red-500" />}
+            {t.type === 'info'    && <Clock className="w-4 h-4 text-indigo-500" />}
+          </div>
+          <p className="text-sm text-slate-700 flex-1">{t.message}</p>
+          <button onClick={() => onDismiss(t.id)} className="text-slate-400 hover:text-slate-600 shrink-0 mt-0.5">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Confirm Modal ────────────────────────────────────────────────────────────
+
+type ConfirmModalConfig = {
+  title: string
+  body: string
+  confirmLabel: string
+  variant?: 'red' | 'emerald' | 'violet' | 'indigo'
+  loading?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function ConfirmModal({ title, body, confirmLabel, variant = 'indigo', loading, onConfirm, onCancel }: ConfirmModalConfig) {
+  const variantCls = {
+    red:     'bg-red-600 hover:bg-red-700',
+    emerald: 'bg-emerald-600 hover:bg-emerald-700',
+    violet:  'bg-violet-600 hover:bg-violet-700',
+    indigo:  'bg-indigo-600 hover:bg-indigo-700',
+  }[variant]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl border border-slate-200 overflow-hidden">
+        <div className="p-6">
+          <div className="flex items-start gap-3 mb-4">
+            <div className={`p-2 rounded-xl shrink-0 ${variant === 'red' ? 'bg-red-50' : variant === 'emerald' ? 'bg-emerald-50' : variant === 'violet' ? 'bg-violet-50' : 'bg-indigo-50'}`}>
+              <AlertTriangle className={`w-5 h-5 ${variant === 'red' ? 'text-red-500' : variant === 'emerald' ? 'text-emerald-500' : variant === 'violet' ? 'text-violet-500' : 'text-indigo-500'}`} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">{title}</h3>
+              <p className="text-sm text-slate-500 mt-1">{body}</p>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={onCancel} disabled={loading}
+              className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={onConfirm} disabled={loading}
+              className={`px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2 ${variantCls}`}>
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Status Stepper ───────────────────────────────────────────────────────────
+
+function StatusStepper({ status, revisionNumber }: { status: string; revisionNumber: number }) {
+  const isLost = status === 'LOST'
+  const steps = [
+    { key: 'PENDING',      label: 'Planning',  short: 'Draft' },
+    { key: 'PRICE_QUOTED', label: 'Quoted',    short: 'Quoted' },
+    { key: isLost ? 'LOST' : 'SUCCESS', label: isLost ? 'Lost' : 'Confirmed', short: isLost ? 'Lost' : 'Done' },
+  ]
+  const statusOrder: Record<string, number> = { PENDING: 0, PRICE_QUOTED: 1, SUCCESS: 2, LOST: 2 }
+  const current = statusOrder[status] ?? 0
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-4">
+      <div className="flex items-center">
+        {steps.map((step, idx) => {
+          const done    = current > idx
+          const active  = current === idx
+          const isLostStep = step.key === 'LOST'
+          return (
+            <div key={step.key} className="flex items-center flex-1">
+              <div className="flex flex-col items-center">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all relative
+                  ${done
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : active
+                      ? isLostStep
+                        ? 'bg-red-500 text-white ring-4 ring-red-100'
+                        : 'bg-indigo-600 text-white ring-4 ring-indigo-100'
+                      : 'bg-slate-100 text-slate-400'
+                  }`}>
+                  {done
+                    ? <CheckCircle className="w-4.5 h-4.5 w-[18px] h-[18px]" />
+                    : active && isLostStep
+                      ? <XCircle className="w-[18px] h-[18px]" />
+                      : <span>{idx + 1}</span>
+                  }
+                  {active && revisionNumber > 1 && idx === 0 && (
+                    <span className="absolute -top-2 -right-2 text-[9px] font-black bg-violet-600 text-white px-1 rounded-full leading-4">
+                      R{revisionNumber}
+                    </span>
+                  )}
+                </div>
+                <span className={`text-[11px] font-semibold mt-1.5 whitespace-nowrap
+                  ${active ? (isLostStep ? 'text-red-600' : 'text-indigo-700') : done ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  {step.label}
+                </span>
+              </div>
+              {idx < steps.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-2 mb-4 rounded-full transition-all ${done ? 'bg-emerald-300' : 'bg-slate-200'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function convertToBaseUnit(qty: number, fromUnit: string, toUnit: string): number {
+  const f = fromUnit.toLowerCase().trim()
+  const t = toUnit.toLowerCase().trim()
+  if (f === t) return qty
+  if (f === 'g'  && t === 'kg') return qty / 1000
+  if (f === 'kg' && t === 'g')  return qty * 1000
+  if (f === 'mg' && t === 'kg') return qty / 1_000_000
+  if (f === 'mg' && t === 'g')  return qty / 1000
+  if (f === 'ml' && (t === 'l' || t === 'litre' || t === 'liter')) return qty / 1000
+  if ((f === 'l' || f === 'litre' || f === 'liter') && t === 'ml') return qty * 1000
+  return qty
+}
+
+function computeDishCost(dish: any): number {
+  if (!dish) return 0
+  const linked = (dish.ingredients || []).filter(
+    (i: any) => i.ingredient && Number(i.ingredient.pricePerUnit) > 0
+  )
+  if (linked.length > 0) {
+    return linked.reduce((sum: number, i: any) => {
+      const q = convertToBaseUnit(Number(i.quantity), i.unit || '', i.ingredient.unit || '')
+      return sum + q * Number(i.ingredient.pricePerUnit)
+    }, 0)
+  }
+  return Number(dish.estimatedCostPerPlate) || 0
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function EnquiryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const { user } = useAuth()
 
-  const [enquiry, setEnquiry] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [updating, setUpdating] = useState(false)
-  const [activeTab, setActiveTab] = useState<'menu' | 'costing' | 'pricing' | 'history'>('menu')
+  // Data
+  const [enquiry, setEnquiry]       = useState<any>(null)
+  const [allDishes, setAllDishes]   = useState<any[]>([])
+  const [costItems, setCostItems]   = useState<any[]>([])
 
-  const [noteInput, setNoteInput] = useState('')
-  const [addingNote, setAddingNote] = useState(false)
-  const [occasion, setOccasion] = useState('')
+  // Loading states
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [refreshing, setRefreshing]         = useState(false)
+
+  // Tab
+  const [activeTab, setActiveTab] = useState<'menu' | 'costing' | 'validation' | 'pricing' | 'history'>('menu')
+
+  // Header fields
+  const [occasion, setOccasion]       = useState('')
   const [serviceType, setServiceType] = useState('')
 
-  const [allDishes, setAllDishes] = useState<any[]>([])
+  // Toasts
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+  const showToast = useCallback((type: ToastItem['type'], message: string) => {
+    const id = Math.random().toString(36).slice(2)
+    setToasts(p => [...p, { id, type, message }])
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4000)
+  }, [])
+  const dismissToast = useCallback((id: string) => setToasts(p => p.filter(t => t.id !== id)), [])
 
-  // Dish editing
-  const [editingDishId, setEditingDishId] = useState<string | null>(null)
-  const [editDishForm, setEditDishForm] = useState({ quantity: 0, pricePerPlate: 0 })
+  // Confirm modal
+  const [modal, setModal] = useState<(ConfirmModalConfig & { loading?: boolean }) | null>(null)
+
+  // Dish state
+  const [editingDishId, setEditingDishId]   = useState<string | null>(null)
+  const [editDishForm, setEditDishForm]     = useState({ quantity: 0, pricePerPlate: 0 })
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
-  const [editServiceForm, setEditServiceForm] = useState({ serviceName: '', price: 0 })
+  const [editServiceForm, setEditServiceForm]   = useState({ serviceName: '', price: 0 })
   const [expandedDishId, setExpandedDishId] = useState<string | null>(null)
-
-  // Adding dish/service
-  const [isAddingDish, setIsAddingDish] = useState(false)
+  const [isAddingDish, setIsAddingDish]     = useState(false)
   const [addDishCategory, setAddDishCategory] = useState(DISH_CATEGORIES[0].label)
-  const [newDishForm, setNewDishForm] = useState({ dishId: '', quantity: 1, pricePerPlate: 0 })
+  const [newDishForm, setNewDishForm]       = useState({ dishId: '', quantity: 1, pricePerPlate: 0 })
   const [isAddingService, setIsAddingService] = useState(false)
   const [newServiceForm, setNewServiceForm] = useState({ serviceName: '', price: 0 })
+  const [savingDishId, setSavingDishId]     = useState<string | null>(null)
+  const [savingServiceId, setSavingServiceId] = useState<string | null>(null)
+  const [addingDish, setAddingDish]         = useState(false)
+  const [addingService, setAddingService]   = useState(false)
 
-  // Costing
-  const [costItems, setCostItems] = useState<any[]>([])
+  // Costing state
   const [isAddingCostItem, setIsAddingCostItem] = useState(false)
   const [newCostItem, setNewCostItem] = useState({ section: 'Grocery', itemName: '', qty: 1, unit: 'kg', rate: 0 })
-  const [editingCostId, setEditingCostId] = useState<string | null>(null)
-  const [editCostForm, setEditCostForm] = useState({ section: '', itemName: '', qty: 0, unit: '', rate: 0 })
-  const [savingCost, setSavingCost] = useState(false)
+  const [editingCostId, setEditingCostId]   = useState<string | null>(null)
+  const [editCostForm, setEditCostForm]     = useState({ section: '', itemName: '', qty: 0, unit: '', rate: 0 })
+  const [savingCost, setSavingCost]         = useState(false)
 
-  // Pricing
-  const [finalPrice, setFinalPrice] = useState(0)
+  // Validation tab cell editing
+  const [editingCell, setEditingCell]         = useState<{ type: 'dish' | 'cost'; id: string; field: string } | null>(null)
+  const [cellValue, setCellValue]             = useState('')
+  const [isValidationMaximized, setIsValidationMaximized] = useState(false)
+
+  // Pricing state
+  const [finalPrice, setFinalPrice]       = useState(0)
   const [advanceAmount, setAdvanceAmount] = useState(0)
-  const [paymentTerms, setPaymentTerms] = useState('')
+  const [paymentTerms, setPaymentTerms]   = useState('')
   const [savingPricing, setSavingPricing] = useState(false)
 
+  // Revision
+  const [revising, setRevising] = useState(false)
+
+  // Note
+  const [noteInput, setNoteInput]   = useState('')
+  const [addingNote, setAddingNote] = useState(false)
+
   // Download modal
-  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false)
+  const [isDownloadModalOpen, setIsDownloadModalOpen]         = useState(false)
   const [downloadIncludeSubItems, setDownloadIncludeSubItems] = useState(false)
 
-  useEffect(() => { loadEnquiry() }, [id])
+  // Action guards
+  const [updating, setUpdating] = useState(false)
 
-  async function loadEnquiry() {
-    setLoading(true)
+  // ─── Load enquiry ──────────────────────────────────────────────────────────
+
+  async function loadEnquiry(opts: { silent?: boolean } = {}) {
+    if (!opts.silent) setInitialLoading(true)
+    else setRefreshing(true)
+
     const [result, dishesResult] = await Promise.all([
       getEnquiryById(id),
       getDishes(undefined, true),
     ])
+
     if (result.success && result.data) {
-      setEnquiry(result.data)
-      setOccasion(Array.isArray(result.data.occasion) ? (result.data.occasion[0] || '') : (result.data.occasion || ''))
-      setServiceType(Array.isArray(result.data.serviceType) ? (result.data.serviceType[0] || '') : (result.data.serviceType || ''))
-      setCostItems(result.data.costItems || [])
-      const savedFinalPrice = result.data.finalPrice || 0
+      const data = result.data
+      setEnquiry(data)
+      setOccasion(Array.isArray(data.occasion) ? (data.occasion[0] || '') : (data.occasion || ''))
+      setServiceType(Array.isArray(data.serviceType) ? (data.serviceType[0] || '') : (data.serviceType || ''))
+      setCostItems(data.costItems || [])
+      const savedFinalPrice = data.finalPrice || 0
       if (savedFinalPrice > 0) {
         setFinalPrice(savedFinalPrice)
       } else {
-        // Auto-calculate from menu dishes + services
-        const dishesSum = (result.data.dishes || []).reduce((s: number, d: any) => {
-          const linked = (d.dish?.ingredients || []).filter((i: any) => i.ingredient && Number(i.ingredient.pricePerUnit) > 0)
-          const cost = linked.length > 0
-            ? linked.reduce((sum: number, i: any) => sum + Number(i.quantity) * Number(i.ingredient.pricePerUnit), 0)
-            : Number(d.dish?.estimatedCostPerPlate) || 0
-          return s + d.quantity * (Number(d.pricePerPlate) || cost)
+        const dishesSum = (data.dishes || []).reduce((s: number, d: any) => {
+          return s + d.quantity * (Number(d.pricePerPlate) || computeDishCost(d.dish))
         }, 0)
-        const servicesSum = (result.data.services || []).reduce((s: number, sv: any) => s + Number(sv.price), 0)
+        const servicesSum = (data.services || []).reduce((s: number, sv: any) => s + Number(sv.price), 0)
         setFinalPrice(dishesSum + servicesSum)
       }
-      setAdvanceAmount(result.data.advanceAmount || 0)
-      setPaymentTerms(result.data.paymentTerms || '')
+      setAdvanceAmount(data.advanceAmount || 0)
+      setPaymentTerms(data.paymentTerms || '')
     }
     if (dishesResult.success && dishesResult.data) setAllDishes(dishesResult.data)
-    setLoading(false)
+
+    setInitialLoading(false)
+    setRefreshing(false)
   }
 
-  const handleStatusUpdate = async (status: 'PENDING' | 'LOST' | 'SUCCESS') => {
-    if (!user) return
+  useEffect(() => { loadEnquiry() }, [id])
+
+  // ─── Handlers ──────────────────────────────────────────────────────────────
+
+  const handleStatusUpdate = async (status: 'LOST' | 'SUCCESS') => {
+    if (!user || updating) return
     setUpdating(true)
-    await updateEnquiryStatus(id, status as any, user.id)
-    loadEnquiry()
+    setModal(prev => prev ? { ...prev, loading: true } : null)
+    try {
+      const result = await updateEnquiryStatus(id, status as any, user.id)
+      if (!result.success) {
+        showToast('error', result.error || 'Failed to update status')
+        setUpdating(false)
+        setModal(null)
+        return
+      }
+      if (status === 'SUCCESS' && result.event) {
+        showToast('success', 'Enquiry confirmed! Redirecting to event...')
+        router.push(`/events/${result.event.id}`)
+        return
+      }
+      showToast('success', status === 'LOST' ? 'Enquiry marked as lost.' : 'Status updated.')
+    } catch {
+      showToast('error', 'An unexpected error occurred.')
+    }
+    setModal(null)
     setUpdating(false)
+    await loadEnquiry({ silent: true })
+  }
+
+  const handleRevise = async () => {
+    setRevising(true)
+    setModal(prev => prev ? { ...prev, loading: true } : null)
+    try {
+      const result = await reviseEnquiry(id)
+      if (!result.success) {
+        showToast('error', result.error || 'Failed to revise quotation')
+        setRevising(false)
+        setModal(null)
+        return
+      }
+      showToast('success', `Revision started — quotation is back in Planning.`)
+    } catch {
+      showToast('error', 'Unexpected error during revision.')
+    }
+    setModal(null)
+    setRevising(false)
+    await loadEnquiry({ silent: true })
   }
 
   const handleAddNote = async () => {
     if (!noteInput.trim()) return
     setAddingNote(true)
-    await addEnquiryUpdate(id, noteInput)
-    setNoteInput('')
-    loadEnquiry()
+    const result = await addEnquiryUpdate(id, noteInput)
+    if (result?.success) {
+      showToast('success', 'Note added.')
+      setNoteInput('')
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to add note.')
+    }
     setAddingNote(false)
   }
 
   const handleAddNewDish = async () => {
     if (!newDishForm.dishId || newDishForm.quantity <= 0) return
-    await addEnquiryDish(id, { dishId: newDishForm.dishId, quantity: newDishForm.quantity, pricePerPlate: newDishForm.pricePerPlate })
-    setIsAddingDish(false)
-    setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 })
-    loadEnquiry()
+    setAddingDish(true)
+    const result = await addEnquiryDish(id, {
+      dishId: newDishForm.dishId,
+      quantity: newDishForm.quantity,
+      pricePerPlate: newDishForm.pricePerPlate,
+    })
+    if (result?.success) {
+      showToast('success', 'Dish added.')
+      setIsAddingDish(false)
+      setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 })
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to add dish.')
+    }
+    setAddingDish(false)
   }
 
   const handleAddNewService = async () => {
     if (!newServiceForm.serviceName.trim()) return
-    await addEnquiryService(id, { serviceName: newServiceForm.serviceName, price: newServiceForm.price })
-    setIsAddingService(false)
-    setNewServiceForm({ serviceName: '', price: 0 })
-    loadEnquiry()
+    setAddingService(true)
+    const result = await addEnquiryService(id, { serviceName: newServiceForm.serviceName, price: newServiceForm.price })
+    if (result?.success) {
+      showToast('success', 'Service added.')
+      setIsAddingService(false)
+      setNewServiceForm({ serviceName: '', price: 0 })
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to add service.')
+    }
+    setAddingService(false)
   }
 
   const handleUpdateDish = async (dishId: string) => {
-    await updateEnquiryDish(dishId, id, editDishForm)
-    setEditingDishId(null)
-    loadEnquiry()
+    setSavingDishId(dishId)
+    const result = await updateEnquiryDish(dishId, id, editDishForm)
+    if (result?.success) {
+      showToast('success', 'Dish updated.')
+      setEditingDishId(null)
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to update dish.')
+    }
+    setSavingDishId(null)
   }
 
-  const handleRemoveDish = async (dishId: string) => {
-    if (confirm('Remove this dish?')) { await removeEnquiryDish(dishId, id); loadEnquiry() }
+  const handleRemoveDish = (dishId: string, dishName: string) => {
+    setModal({
+      title: 'Remove Dish',
+      body: `Remove "${dishName}" from the menu?`,
+      confirmLabel: 'Remove',
+      variant: 'red',
+      onConfirm: async () => {
+        setModal(prev => prev ? { ...prev, loading: true } : null)
+        const result = await removeEnquiryDish(dishId, id)
+        if (result?.success) {
+          showToast('success', 'Dish removed.')
+          await loadEnquiry({ silent: true })
+        } else {
+          showToast('error', 'Failed to remove dish.')
+        }
+        setModal(null)
+      },
+      onCancel: () => setModal(null),
+    })
   }
 
   const handleUpdateService = async (serviceId: string) => {
-    await updateEnquiryService(serviceId, id, editServiceForm)
-    setEditingServiceId(null)
-    loadEnquiry()
+    setSavingServiceId(serviceId)
+    const result = await updateEnquiryService(serviceId, id, editServiceForm)
+    if (result?.success) {
+      showToast('success', 'Service updated.')
+      setEditingServiceId(null)
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to update service.')
+    }
+    setSavingServiceId(null)
   }
 
-  const handleRemoveService = async (serviceId: string) => {
-    if (confirm('Remove this service?')) { await removeEnquiryService(serviceId, id); loadEnquiry() }
+  const handleRemoveService = (serviceId: string, name: string) => {
+    setModal({
+      title: 'Remove Service',
+      body: `Remove "${name}" from the quotation?`,
+      confirmLabel: 'Remove',
+      variant: 'red',
+      onConfirm: async () => {
+        setModal(prev => prev ? { ...prev, loading: true } : null)
+        const result = await removeEnquiryService(serviceId, id)
+        if (result?.success) {
+          showToast('success', 'Service removed.')
+          await loadEnquiry({ silent: true })
+        } else {
+          showToast('error', 'Failed to remove service.')
+        }
+        setModal(null)
+      },
+      onCancel: () => setModal(null),
+    })
   }
 
   const handleAddCostItem = async () => {
-    if (!newCostItem.itemName.trim()) return
+    if (!newCostItem.itemName.trim() || !isEditable) return
     setSavingCost(true)
-    await addCostItem({ enquiryId: id, ...newCostItem })
-    setNewCostItem({ section: 'Grocery', itemName: '', qty: 1, unit: 'kg', rate: 0 })
-    setIsAddingCostItem(false)
-    loadEnquiry()
+    const result = await addCostItem({ enquiryId: id, ...newCostItem })
+    if (result?.success) {
+      showToast('success', 'Cost item added.')
+      setNewCostItem({ section: 'Grocery', itemName: '', qty: 1, unit: 'kg', rate: 0 })
+      setIsAddingCostItem(false)
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to add cost item.')
+    }
     setSavingCost(false)
   }
 
   const handleUpdateCostItem = async (costId: string) => {
     setSavingCost(true)
-    await updateCostItem(costId, editCostForm)
-    setEditingCostId(null)
-    loadEnquiry()
+    const result = await updateCostItem(costId, editCostForm)
+    if (result?.success) {
+      showToast('success', 'Cost item updated.')
+      setEditingCostId(null)
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to update cost item.')
+    }
     setSavingCost(false)
   }
 
-  const handleDeleteCostItem = async (costId: string) => {
-    if (confirm('Delete this cost item?')) { await deleteCostItem(costId); loadEnquiry() }
+  const handleDeleteCostItem = (costId: string, itemName: string) => {
+    setModal({
+      title: 'Delete Cost Item',
+      body: `Delete "${itemName}" from the costing sheet?`,
+      confirmLabel: 'Delete',
+      variant: 'red',
+      onConfirm: async () => {
+        setModal(prev => prev ? { ...prev, loading: true } : null)
+        const result = await deleteCostItem(costId)
+        if (result?.success) {
+          showToast('success', 'Cost item deleted.')
+          await loadEnquiry({ silent: true })
+        } else {
+          showToast('error', 'Failed to delete cost item.')
+        }
+        setModal(null)
+      },
+      onCancel: () => setModal(null),
+    })
+  }
+
+  // ─── Validation tab cell handlers ────────────────────────────────────────────
+
+  const startCellEdit = (type: 'dish' | 'cost', id: string, field: string, currentValue: string | number) => {
+    if (!isEditable) return
+    setEditingCell({ type, id, field })
+    setCellValue(String(currentValue))
+  }
+
+  const cancelCellEdit = () => {
+    setEditingCell(null)
+    setCellValue('')
+  }
+
+  const handleDishCellSave = async (dishId: string, field: 'quantity' | 'pricePerPlate') => {
+    setEditingCell(null)
+    const num = Number(cellValue)
+    if (isNaN(num) || num <= 0) return
+    const dish = enquiry.dishes.find((d: any) => d.id === dishId)
+    if (!dish) return
+    const data = {
+      quantity: field === 'quantity' ? num : dish.quantity,
+      pricePerPlate: field === 'pricePerPlate' ? num : (Number(dish.pricePerPlate) || computeDishCost(dish.dish)),
+    }
+    const result = await updateEnquiryDish(dishId, id, data)
+    if (result?.success) {
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to update dish.')
+    }
+  }
+
+  const handleCostCellSave = async (costId: string, field: string) => {
+    setEditingCell(null)
+    const isNumeric = field === 'qty' || field === 'rate'
+    const updateData: any = { [field]: isNumeric ? Number(cellValue) : cellValue }
+    if (isNumeric && isNaN(updateData[field])) return
+    const result = await updateCostItem(costId, updateData)
+    if (result?.success) {
+      await loadEnquiry({ silent: true })
+    } else {
+      showToast('error', 'Failed to update cost item.')
+    }
+  }
+
+  const handleCellKeyDown = (
+    e: React.KeyboardEvent,
+    type: 'dish' | 'cost',
+    id: string,
+    field: string
+  ) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (type === 'dish') handleDishCellSave(id, field as 'quantity' | 'pricePerPlate')
+      else handleCostCellSave(id, field)
+    }
+    if (e.key === 'Escape') cancelCellEdit()
   }
 
   const handleSavePricing = async () => {
-    if (!user) return
+    if (!user || finalPrice <= 0) return
     setSavingPricing(true)
-    await updateEnquiryPricing(id, { finalPrice, advanceAmount, paymentTerms })
-    if (enquiry.status === 'PENDING') {
-      await updateEnquiryStatus(id, 'PRICE_QUOTED' as any, user.id)
+    const pricingResult = await updateEnquiryPricing(id, { finalPrice, advanceAmount, paymentTerms })
+    if (!pricingResult?.success) {
+      showToast('error', pricingResult?.error || 'Failed to save pricing.')
+      setSavingPricing(false)
+      return
     }
-    loadEnquiry()
+    if (enquiry.status === 'PENDING') {
+      const statusResult = await updateEnquiryStatus(id, 'PRICE_QUOTED' as any, user.id)
+      if (!statusResult?.success) {
+        showToast('error', statusResult?.error || 'Pricing saved but failed to lock quotation.')
+        setSavingPricing(false)
+        await loadEnquiry({ silent: true })
+        return
+      }
+      showToast('success', 'Quotation finalised and sent!')
+    } else {
+      showToast('success', 'Pricing saved.')
+    }
     setSavingPricing(false)
+    await loadEnquiry({ silent: true })
   }
 
   const handleDownloadMenu = (format: 'pdf' | 'excel' | 'word') => {
@@ -241,26 +657,46 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
     window.open(`https://wa.me/${enquiry.clientContact}?text=${encodeURIComponent(text)}`, '_blank')
   }
 
-  // Cost price: use linked ingredient sum if available, else estimatedCostPerPlate
-  function computeDishCost(dish: any): number {
-    if (!dish) return 0
-    const linked = (dish.ingredients || []).filter(
-      (i: any) => i.ingredient && Number(i.ingredient.pricePerUnit) > 0
-    )
-    if (linked.length > 0) {
-      return linked.reduce(
-        (sum: number, i: any) => sum + Number(i.quantity) * Number(i.ingredient.pricePerUnit),
-        0
-      )
-    }
-    return Number(dish.estimatedCostPerPlate) || 0
+  const openReviseModal = (currentRevNum: number) => {
+    setModal({
+      title: `Start Revision ${currentRevNum + 1}?`,
+      body: `The quotation will revert to Planning state, the quoted price will be cleared, and you'll be free to update the menu and pricing.`,
+      confirmLabel: `Confirm → Rev. ${currentRevNum + 1}`,
+      variant: 'violet',
+      onConfirm: handleRevise,
+      onCancel: () => setModal(null),
+    })
   }
+
+  const openConvertModal = () => {
+    setModal({
+      title: 'Convert to Event?',
+      body: `This will confirm the enquiry and create a new event with all dishes, services, and pricing. This cannot be undone.`,
+      confirmLabel: 'Confirm & Convert',
+      variant: 'emerald',
+      onConfirm: () => handleStatusUpdate('SUCCESS'),
+      onCancel: () => setModal(null),
+    })
+  }
+
+  const openLostModal = () => {
+    setModal({
+      title: 'Mark as Lost?',
+      body: `This will close the enquiry as a lost deal. This action cannot be reversed.`,
+      confirmLabel: 'Mark as Lost',
+      variant: 'red',
+      onConfirm: () => handleStatusUpdate('LOST'),
+      onCancel: () => setModal(null),
+    })
+  }
+
+  // ─── Status badge helpers ──────────────────────────────────────────────────
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING':      return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold border border-amber-200"><Clock className="w-3.5 h-3.5" />Planning</span>
       case 'SUCCESS':      return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold border border-emerald-200"><CheckCircle className="w-3.5 h-3.5" />Confirmed</span>
-      case 'PRICE_QUOTED': return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold border border-indigo-200"><CheckCircle className="w-3.5 h-3.5" />Price Quoted</span>
+      case 'PRICE_QUOTED': return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold border border-indigo-200"><Lock className="w-3.5 h-3.5" />Price Quoted</span>
       case 'LOST':         return <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-semibold border border-red-200"><XCircle className="w-3.5 h-3.5" />Lost</span>
       default: return null
     }
@@ -270,14 +706,20 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
     switch (updateType) {
       case 'STATUS_CHANGE': return <CheckCircle className="w-4 h-4 text-indigo-500" />
       case 'NOTE_ADDED':    return <FileText className="w-4 h-4 text-slate-400" />
+      case 'REVISION':      return <RotateCcw className="w-4 h-4 text-violet-500" />
       default:              return <Clock className="w-4 h-4 text-slate-400" />
     }
   }
 
-  if (loading) return (
+  // ─── Loading state ─────────────────────────────────────────────────────────
+
+  if (initialLoading) return (
     <PageLayout currentPath="/enquiries">
       <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
-        <div className="text-slate-400">Loading enquiry...</div>
+        <div className="flex items-center gap-2 text-slate-400">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          Loading enquiry...
+        </div>
       </div>
     </PageLayout>
   )
@@ -294,53 +736,81 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
   )
 
   const isTerminal = enquiry.status === 'SUCCESS' || enquiry.status === 'LOST'
-  const dishesTotal = enquiry.dishes.reduce((s: number, d: any) => s + d.quantity * (Number(d.pricePerPlate) || computeDishCost(d.dish)), 0)
-  const servicesTotal = enquiry.services.reduce((s: number, sv: any) => s + Number(sv.price), 0)
+  const isLocked   = enquiry.status === 'PRICE_QUOTED'
+  const isEditable = enquiry.status === 'PENDING'
+  const revisionNumber  = enquiry.revisionNumber || 1
+  const dishesTotal     = enquiry.dishes.reduce((s: number, d: any) => s + d.quantity * (Number(d.pricePerPlate) || computeDishCost(d.dish)), 0)
+  const servicesTotal   = enquiry.services.reduce((s: number, sv: any) => s + Number(sv.price), 0)
   const internalCostTotal = costItems.reduce((s: number, c: any) => s + Number(c.qty) * Number(c.rate), 0)
   const margin = finalPrice > 0 ? ((finalPrice - internalCostTotal) / finalPrice * 100) : 0
   const costBySec = COST_SECTIONS.reduce((acc, sec) => { acc[sec] = costItems.filter(c => c.section === sec); return acc }, {} as Record<string, any[]>)
 
   return (
     <PageLayout currentPath="/enquiries">
-      <div className="min-h-screen bg-slate-50/50 pb-12">
-        <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8 lg:py-12 space-y-6">
+      {/* Refreshing bar */}
+      {refreshing && (
+        <div className="fixed top-0 left-0 right-0 z-[200] h-0.5 bg-indigo-500 animate-pulse" />
+      )}
 
-          {/* Header */}
+      <div className="min-h-screen bg-slate-50/50 pb-12">
+        <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8 lg:py-10 space-y-5">
+
+          {/* ── Header ──────────────────────────────────────────────────────── */}
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex items-start gap-4">
-              <button onClick={() => router.back()} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors mt-1">
+              <button onClick={() => router.back()}
+                className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors mt-1">
                 <ArrowLeft className="w-5 h-5 text-slate-600" />
               </button>
               <div>
-                <div className="flex items-center gap-3 mb-1">
+                <div className="flex items-center gap-3 mb-1 flex-wrap">
                   <h1 className="text-2xl lg:text-3xl font-bold text-slate-900">{enquiry.quotationNumber}</h1>
+                  {revisionNumber > 1 && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-100 text-violet-700 text-xs font-bold rounded-lg border border-violet-200">
+                      <RotateCcw className="w-3 h-3" />Rev. {revisionNumber}
+                    </span>
+                  )}
                   {getStatusBadge(enquiry.status)}
                 </div>
-                <p className="text-slate-500">
+                <p className="text-slate-500 text-sm">
                   Created {new Date(enquiry.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                   {enquiry.createdBy && ` by ${enquiry.createdBy.name}`}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <input type="text" placeholder="Occasion (e.g. NIKKAH)" value={occasion}
-                onChange={e => setOccasion(e.target.value)}
-                onBlur={async () => { await updateEnquiryDetails(id, { occasion: occasion ? [occasion] : undefined }) }}
-                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-44" />
-              <input type="text" placeholder="Service Type" value={serviceType}
-                onChange={e => setServiceType(e.target.value)}
-                onBlur={async () => { await updateEnquiryDetails(id, { serviceType: serviceType ? [serviceType] : undefined }) }}
-                className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-36" />
-              <button onClick={() => setIsDownloadModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all">
-                <Download className="w-4 h-4" /><span className="hidden sm:inline">Menu</span>
+              {/* Occasion */}
+              {isEditable
+                ? <input type="text" placeholder="Occasion (e.g. NIKKAH)" value={occasion}
+                    onChange={e => setOccasion(e.target.value)}
+                    onBlur={async () => { await updateEnquiryDetails(id, { occasion: occasion ? [occasion] : undefined }) }}
+                    className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-44" />
+                : occasion
+                  ? <span className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium">{occasion}</span>
+                  : null
+              }
+              {/* Service Type */}
+              {isEditable
+                ? <input type="text" placeholder="Service Type" value={serviceType}
+                    onChange={e => setServiceType(e.target.value)}
+                    onBlur={async () => { await updateEnquiryDetails(id, { serviceType: serviceType ? [serviceType] : undefined }) }}
+                    className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent w-36" />
+                : serviceType
+                  ? <span className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium">{serviceType}</span>
+                  : null
+              }
+              <button onClick={() => setIsDownloadModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all">
+                <Download className="w-4 h-4" /><span className="hidden sm:inline">Download</span>
               </button>
-              <button onClick={handleShareQuotation} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 border border-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-all shadow-sm">
+              <button onClick={handleShareQuotation}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 border border-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-all shadow-sm">
                 <Share2 className="w-4 h-4" /><span className="hidden sm:inline">Share</span>
               </button>
             </div>
           </div>
 
-          {/* Client Info */}
+          {/* ── Client Info ──────────────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="flex items-start gap-3">
@@ -361,7 +831,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-slate-100 rounded-lg mt-0.5"><Calendar className="w-4 h-4 text-slate-500" /></div>
                 <div>
-                  <p className="text-xs text-slate-500 mb-0.5">Date & Time</p>
+                  <p className="text-xs text-slate-500 mb-0.5">Date &amp; Time</p>
                   <p className="font-semibold text-slate-900 text-sm">{new Date(enquiry.eventDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                   <p className="text-xs text-slate-600">{enquiry.eventTime}</p>
                 </div>
@@ -376,8 +846,11 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          {/* Main workspace grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* ── Status Stepper ──────────────────────────────────────────────── */}
+          <StatusStepper status={enquiry.status} revisionNumber={revisionNumber} />
+
+          {/* ── Main Workspace ──────────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
             {/* LEFT: Tabbed workspace */}
             <div className="lg:col-span-2">
@@ -386,12 +859,13 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                 {/* Tab bar */}
                 <div className="flex border-b border-slate-100 bg-slate-50/60">
                   {[
-                    { key: 'menu',    label: 'Menu',    Icon: UtensilsCrossed },
-                    { key: 'costing', label: 'Costing', Icon: Calculator },
-                    { key: 'pricing', label: 'Pricing', Icon: DollarSign },
-                    { key: 'history', label: 'History', Icon: History },
+                    { key: 'menu',       label: 'Menu',       Icon: UtensilsCrossed },
+                    { key: 'costing',    label: 'Costing',    Icon: Calculator },
+                    { key: 'validation', label: 'Validation', Icon: Table2 },
+                    { key: 'pricing',    label: 'Pricing',    Icon: DollarSign },
+                    { key: 'history',    label: 'History',    Icon: History },
                   ].map(({ key, label, Icon }) => (
-                    <button key={key} onClick={() => setActiveTab(key as any)}
+                    <button key={key} onClick={() => { setActiveTab(key as any); setEditingCell(null) }}
                       className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-3.5 text-xs sm:text-sm font-semibold transition-colors border-b-2 ${
                         activeTab === key
                           ? 'border-blue-600 text-blue-700 bg-white'
@@ -405,7 +879,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
 
                 <div className="p-5">
 
-                  {/* ══════════ MENU TAB ══════════ */}
+                  {/* ════════ MENU TAB ════════ */}
                   {activeTab === 'menu' && (
                     <div className="space-y-6">
 
@@ -422,7 +896,12 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 rounded-lg transition-colors border border-slate-200">
                               <Download className="w-3.5 h-3.5" />Download
                             </button>
-                            {!isTerminal && (
+                            {isLocked && (
+                              <span className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                <Lock className="w-3 h-3" />Locked
+                              </span>
+                            )}
+                            {isEditable && (
                               <button onClick={() => setIsAddingDish(!isAddingDish)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100">
                                 <Plus className="w-3.5 h-3.5" />Add Dish
@@ -431,6 +910,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                           </div>
                         </div>
 
+                        {/* Add dish form */}
                         {isAddingDish && (() => {
                           const allMapped = DISH_CATEGORIES.flatMap(c => c.dbCategories)
                           const activeCat = DISH_CATEGORIES.find(c => c.label === addDishCategory)!
@@ -478,8 +958,12 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                                       onChange={e => setNewDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))}
                                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
                                   </div>
-                                  <button onClick={handleAddNewDish} disabled={newDishForm.quantity <= 0} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50">Add</button>
-                                  <button onClick={() => { setIsAddingDish(false); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }} className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300 transition">Cancel</button>
+                                  <button onClick={handleAddNewDish} disabled={newDishForm.quantity <= 0 || addingDish}
+                                    className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1.5">
+                                    {addingDish && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Add
+                                  </button>
+                                  <button onClick={() => { setIsAddingDish(false); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }}
+                                    className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300 transition">Cancel</button>
                                 </div>
                               )}
                             </div>
@@ -488,71 +972,78 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
 
                         {enquiry.dishes.length > 0 ? (
                           <div className="space-y-2">
-                            {enquiry.dishes.map((d: any) => (
-                              <div key={d.id} className="flex flex-col p-3 border border-slate-100 rounded-xl bg-slate-50/50">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                                  <div className="mb-2 sm:mb-0 flex items-start gap-2">
-                                    {d.dish?.ingredients?.length > 0 && (
-                                      <button onClick={() => setExpandedDishId(expandedDishId === d.id ? null : d.id)}
-                                        className="mt-1 p-0.5 text-slate-400 hover:text-slate-600 rounded bg-slate-100 hover:bg-slate-200">
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={expandedDishId === d.id ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                                        </svg>
-                                      </button>
-                                    )}
-                                    <div>
-                                      <p className="font-semibold text-slate-900">{d.dish?.name || '—'}</p>
-                                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                        {d.dish?.category && <span className="text-xs text-slate-500">{d.dish.category}</span>}
-                                        {d.dish?.priceUnit && <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">{d.dish.priceUnit}</span>}
+                            {enquiry.dishes.map((d: any) => {
+                              const unitPrice = Number(d.pricePerPlate) || computeDishCost(d.dish)
+                              const subtotal  = d.quantity * unitPrice
+                              return (
+                                <div key={d.id} className="flex flex-col p-3 border border-slate-100 rounded-xl bg-slate-50/50">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                                    <div className="mb-2 sm:mb-0 flex items-start gap-2">
+                                      {d.dish?.ingredients?.length > 0 && (
+                                        <button onClick={() => setExpandedDishId(expandedDishId === d.id ? null : d.id)}
+                                          className="mt-1 p-0.5 text-slate-400 hover:text-slate-600 rounded bg-slate-100 hover:bg-slate-200">
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={expandedDishId === d.id ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                                          </svg>
+                                        </button>
+                                      )}
+                                      <div>
+                                        <p className="font-semibold text-slate-900">{d.dish?.name || '—'}</p>
+                                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                          {d.dish?.category && <span className="text-xs text-slate-500">{d.dish.category}</span>}
+                                          {d.dish?.priceUnit && <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">{d.dish.priceUnit}</span>}
+                                          {isEditable && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">DRAFT</span>}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                  {editingDishId === d.id ? (
-                                    <div className="flex items-center gap-2 bg-white p-2 border border-blue-200 rounded-lg shadow-sm">
-                                      <input type="number" className="w-20 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
-                                        value={editDishForm.quantity} onChange={e => setEditDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))} placeholder="Qty" />
-                                      <span className="text-slate-400 text-sm">× ₹</span>
-                                      <input type="number" className="w-24 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
-                                        value={editDishForm.pricePerPlate} onChange={e => setEditDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))} placeholder="Price" />
-                                      <button onClick={() => handleUpdateDish(d.id)} className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Save</button>
-                                      <button onClick={() => setEditingDishId(null)} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300">Cancel</button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-4">
-                                      {enquiry.status !== 'PENDING' && (
+                                    {editingDishId === d.id ? (
+                                      <div className="flex items-center gap-2 bg-white p-2 border border-blue-200 rounded-lg shadow-sm">
+                                        <input type="number" className="w-20 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
+                                          value={editDishForm.quantity} onChange={e => setEditDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))} placeholder="Qty" />
+                                        <span className="text-slate-400 text-sm">× ₹</span>
+                                        <input type="number" className="w-24 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
+                                          value={editDishForm.pricePerPlate} onChange={e => setEditDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))} placeholder="Price" />
+                                        <button onClick={() => handleUpdateDish(d.id)} disabled={savingDishId === d.id}
+                                          className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 flex items-center gap-1 disabled:opacity-50">
+                                          {savingDishId === d.id && <Loader2 className="w-3 h-3 animate-spin" />}Save
+                                        </button>
+                                        <button onClick={() => setEditingDishId(null)} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300">Cancel</button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-4">
                                         <div className="text-right">
                                           <p className="text-sm font-semibold text-slate-900">
-                                            {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')} × ₹{(Number(d.pricePerPlate) || computeDishCost(d.dish)).toLocaleString()}
+                                            {d.quantity} {(d.dish?.priceUnit || 'per plate').replace('per ', '')} × ₹{unitPrice.toLocaleString()}
                                           </p>
                                           <p className="text-xs text-slate-500 font-medium">
-                                            Subtotal: ₹{(d.quantity * (Number(d.pricePerPlate) || computeDishCost(d.dish))).toLocaleString()}
+                                            Subtotal: ₹{subtotal.toLocaleString()}
                                           </p>
                                         </div>
-                                      )}
-                                      {!isTerminal && (
-                                        <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
-                                          <button onClick={() => { setEditingDishId(d.id); setEditDishForm({ quantity: d.quantity, pricePerPlate: Number(d.pricePerPlate) || computeDishCost(d.dish) }) }}
-                                            className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
-                                          <button onClick={() => handleRemoveDish(d.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
+                                        {isEditable && (
+                                          <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
+                                            <button onClick={() => { setEditingDishId(d.id); setEditDishForm({ quantity: d.quantity, pricePerPlate: unitPrice }) }}
+                                              className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
+                                            <button onClick={() => handleRemoveDish(d.id, d.dish?.name || 'this dish')}
+                                              className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {expandedDishId === d.id && d.dish?.ingredients?.length > 0 && (
+                                    <div className="mt-3 pl-8 py-2 border-t border-slate-100/50 flex flex-col gap-1">
+                                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Sub-Items</p>
+                                      {d.dish.ingredients.map((ing: any) => (
+                                        <div key={ing.id} className="text-sm text-slate-600 flex items-center gap-2">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                          {ing.ingredientName}
                                         </div>
-                                      )}
+                                      ))}
                                     </div>
                                   )}
                                 </div>
-                                {expandedDishId === d.id && d.dish?.ingredients?.length > 0 && (
-                                  <div className="mt-3 pl-8 py-2 border-t border-slate-100/50 flex flex-col gap-1">
-                                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Sub-Items</p>
-                                    {d.dish.ingredients.map((ing: any) => (
-                                      <div key={ing.id} className="text-sm text-slate-600 flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                        {ing.ingredientName}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         ) : (
                           <p className="text-slate-400 text-sm text-center py-6">No dishes added</p>
@@ -563,7 +1054,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                       <div>
                         <div className="flex items-center justify-between mb-4">
                           <h2 className="text-base font-semibold text-slate-900">Services</h2>
-                          {!isTerminal && (
+                          {isEditable && (
                             <button onClick={() => setIsAddingService(!isAddingService)}
                               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100">
                               <Plus className="w-3.5 h-3.5" />Add Service
@@ -583,7 +1074,10 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                               <input type="number" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500"
                                 value={newServiceForm.price} onChange={e => setNewServiceForm(prev => ({ ...prev, price: Number(e.target.value) }))} />
                             </div>
-                            <button onClick={handleAddNewService} disabled={!newServiceForm.serviceName} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50">Add</button>
+                            <button onClick={handleAddNewService} disabled={!newServiceForm.serviceName || addingService}
+                              className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1.5">
+                              {addingService && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Add
+                            </button>
                           </div>
                         )}
                         {enquiry.services.length > 0 ? (
@@ -597,7 +1091,10 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                                     <span className="text-slate-400 text-sm">₹</span>
                                     <input type="number" className="w-24 px-2 py-1 text-sm border border-slate-200 rounded outline-none focus:border-blue-500"
                                       value={editServiceForm.price} onChange={e => setEditServiceForm(prev => ({ ...prev, price: Number(e.target.value) }))} />
-                                    <button onClick={() => handleUpdateService(s.id)} className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Save</button>
+                                    <button onClick={() => handleUpdateService(s.id)} disabled={savingServiceId === s.id}
+                                      className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 flex items-center gap-1 disabled:opacity-50">
+                                      {savingServiceId === s.id && <Loader2 className="w-3 h-3 animate-spin" />}Save
+                                    </button>
                                     <button onClick={() => setEditingServiceId(null)} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300">Cancel</button>
                                   </div>
                                 ) : (
@@ -607,12 +1104,13 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                                       {s.description && <p className="text-xs text-slate-500">{s.description}</p>}
                                     </div>
                                     <div className="flex items-center gap-4">
-                                      {enquiry.status !== 'PENDING' && <p className="text-sm font-semibold text-slate-900">₹{Number(s.price).toLocaleString()}</p>}
-                                      {!isTerminal && (
+                                      <p className="text-sm font-semibold text-slate-900">₹{Number(s.price).toLocaleString()}</p>
+                                      {isEditable && (
                                         <div className="flex flex-col gap-1 border-l border-slate-200 pl-4">
                                           <button onClick={() => { setEditingServiceId(s.id); setEditServiceForm({ serviceName: s.serviceName, price: Number(s.price) }) }}
                                             className="text-[10px] uppercase font-bold text-blue-600 hover:underline">Edit</button>
-                                          <button onClick={() => handleRemoveService(s.id)} className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
+                                          <button onClick={() => handleRemoveService(s.id, s.serviceName)}
+                                            className="text-[10px] uppercase font-bold text-red-600 hover:underline">Remove</button>
                                         </div>
                                       )}
                                     </div>
@@ -627,11 +1125,18 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                       </div>
 
                       {/* Menu total */}
-                      {enquiry.status !== 'PENDING' && (
-                        <div className="bg-slate-900 rounded-xl p-4 text-white flex justify-between items-center">
-                          <span className="text-slate-300 font-medium">Menu Total</span>
-                          <span className="text-2xl font-bold">₹{(dishesTotal + servicesTotal).toLocaleString()}</span>
-                        </div>
+                      <div className="bg-slate-900 rounded-xl p-4 text-white flex justify-between items-center">
+                        <span className="text-slate-300 font-medium">Menu Total</span>
+                        <span className="text-2xl font-bold">₹{(dishesTotal + servicesTotal).toLocaleString()}</span>
+                      </div>
+
+                      {/* CTA to pricing if editable */}
+                      {isEditable && enquiry.dishes.length > 0 && (
+                        <button onClick={() => setActiveTab('pricing')}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-sm font-semibold hover:bg-indigo-100 transition-all">
+                          <DollarSign className="w-4 h-4" />Ready to price? Go to Pricing
+                          <ChevronRight className="w-4 h-4 ml-auto" />
+                        </button>
                       )}
 
                       {/* Converted Event link */}
@@ -651,7 +1156,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   )}
 
-                  {/* ══════════ COSTING TAB ══════════ */}
+                  {/* ════════ COSTING TAB ════════ */}
                   {activeTab === 'costing' && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -659,16 +1164,21 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                           <h2 className="text-base font-semibold text-slate-900">Internal Costing Sheet</h2>
                           <p className="text-xs text-slate-500 mt-0.5">Manual cost breakdown — admin only</p>
                         </div>
-                        {!isTerminal && (
+                        {isEditable && (
                           <button onClick={() => setIsAddingCostItem(true)}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100">
                             <Plus className="w-3.5 h-3.5" />Add Item
                           </button>
                         )}
+                        {isLocked && (
+                          <span className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <Lock className="w-3 h-3" />Locked
+                          </span>
+                        )}
                       </div>
 
                       {/* Add form */}
-                      {isAddingCostItem && (
+                      {isAddingCostItem && isEditable && (
                         <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl space-y-3">
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <div>
@@ -707,20 +1217,22 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                               <button onClick={() => { setIsAddingCostItem(false); setNewCostItem({ section: 'Grocery', itemName: '', qty: 1, unit: 'kg', rate: 0 }) }}
                                 className="px-3 py-1.5 text-sm bg-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-300">Cancel</button>
                               <button onClick={handleAddCostItem} disabled={savingCost || !newCostItem.itemName}
-                                className="px-4 py-1.5 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">Save Item</button>
+                                className="px-4 py-1.5 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5">
+                                {savingCost && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Save Item
+                              </button>
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Items by section */}
+                      {/* Cost items */}
                       {costItems.length === 0 && !isAddingCostItem ? (
                         <div className="text-center py-12 text-slate-400">
                           <Calculator className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                          <p className="text-sm">No cost items yet. Click "Add Item" to start your costing sheet.</p>
+                          <p className="text-sm">No cost items yet.{isEditable ? ' Click "Add Item" to start.' : ''}</p>
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className={`space-y-3 ${!isEditable && costItems.length > 0 ? 'opacity-75' : ''}`}>
                           {COST_SECTIONS.map(section => {
                             const items = costBySec[section]
                             if (!items || items.length === 0) return null
@@ -775,7 +1287,10 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                                             <span className="text-sm font-semibold text-slate-700">Total: ₹{(editCostForm.qty * editCostForm.rate).toLocaleString()}</span>
                                             <div className="flex gap-2">
                                               <button onClick={() => setEditingCostId(null)} className="px-3 py-1 text-xs bg-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-300">Cancel</button>
-                                              <button onClick={() => handleUpdateCostItem(item.id)} disabled={savingCost} className="px-3 py-1 text-xs bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50">Save</button>
+                                              <button onClick={() => handleUpdateCostItem(item.id)} disabled={savingCost}
+                                                className="px-3 py-1 text-xs bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+                                                {savingCost && <Loader2 className="w-3 h-3 animate-spin" />}Save
+                                              </button>
                                             </div>
                                           </div>
                                         </div>
@@ -786,11 +1301,11 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                                           <div className="col-span-1 text-center text-xs text-slate-500">{item.unit}</div>
                                           <div className="col-span-2 text-right text-sm text-slate-600">₹{Number(item.rate).toLocaleString()}</div>
                                           <div className="col-span-2 text-right text-sm font-semibold text-slate-800">₹{(Number(item.qty) * Number(item.rate)).toLocaleString()}</div>
-                                          {!isTerminal ? (
+                                          {isEditable ? (
                                             <div className="col-span-1 flex justify-end gap-1.5">
                                               <button onClick={() => { setEditingCostId(item.id); setEditCostForm({ section: item.section, itemName: item.itemName, qty: Number(item.qty), unit: item.unit, rate: Number(item.rate) }) }}
                                                 className="text-xs text-blue-600 hover:underline font-bold">Edit</button>
-                                              <button onClick={() => handleDeleteCostItem(item.id)} className="text-red-400 hover:text-red-600">
+                                              <button onClick={() => handleDeleteCostItem(item.id, item.itemName)} className="text-red-400 hover:text-red-600">
                                                 <Trash2 className="w-3.5 h-3.5" />
                                               </button>
                                             </div>
@@ -815,7 +1330,284 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   )}
 
-                  {/* ══════════ PRICING TAB ══════════ */}
+                  {/* ════════ VALIDATION TAB ════════ */}
+                  {activeTab === 'validation' && (() => {
+                    // Grocery CostItems (section='Grocery') — editable store
+                    const groceryItems = costItems.filter((c: any) => c.section === 'Grocery')
+                    const groceryTotal = groceryItems.reduce((s: number, i: any) => s + Number(i.qty) * Number(i.rate), 0)
+
+                    // Derived from Menu dishes — used for auto-sync
+                    const menuDerived = (() => {
+                      const map = new Map<string, { itemName: string; qty: number; unit: string; rate: number }>()
+                      for (const ed of enquiry.dishes) {
+                        const plateCount = Number(ed.quantity) || 1
+                        for (const ing of (ed.dish?.ingredients ?? [])) {
+                          const scaledQty = Number(ing.quantity) * plateCount
+                          const existing = map.get(ing.ingredientName)
+                          if (existing) {
+                            existing.qty += scaledQty
+                          } else {
+                            map.set(ing.ingredientName, {
+                              itemName: ing.ingredientName,
+                              qty: scaledQty,
+                              unit: ing.unit ?? '',
+                              rate: Number(ing.ingredient?.pricePerUnit ?? 0),
+                            })
+                          }
+                        }
+                      }
+                      return Array.from(map.values())
+                    })()
+
+                    const handleSyncFromMenu = async () => {
+                      if (menuDerived.length === 0) return
+                      setRefreshing(true)
+                      await syncGroceryFromMenu(id, menuDerived)
+                      await loadEnquiry({ silent: true })
+                    }
+
+                    // Editable cell (reuses shared editingCell / cellValue state)
+                    const Cell = ({ value, display, costId, field, numeric, cls }: {
+                      value: string | number; display?: string
+                      costId: string; field: string; numeric?: boolean; cls?: string
+                    }) => {
+                      const active = editingCell?.id === costId && editingCell?.field === field
+                      return active ? (
+                        <input autoFocus type={numeric ? 'number' : 'text'} value={cellValue}
+                          onChange={e => setCellValue(e.target.value)}
+                          onBlur={() => handleCostCellSave(costId, field)}
+                          onKeyDown={e => handleCellKeyDown(e, 'cost', costId, field)}
+                          className={`w-full h-full min-h-[38px] px-2 py-1.5 text-sm outline-none bg-emerald-50 border-2 border-emerald-500 rounded focus:ring-0 ${cls ?? ''}`}
+                        />
+                      ) : (
+                        <div
+                          onClick={() => isEditable ? startCellEdit('cost', costId, field, value) : undefined}
+                          title={isEditable ? 'Click to edit' : undefined}
+                          className={`min-h-[38px] flex items-center px-2 py-1.5 text-sm
+                            ${isEditable ? 'cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 transition-colors' : 'cursor-default'}
+                            ${cls ?? ''}`}>
+                          {display ?? value}
+                        </div>
+                      )
+                    }
+
+                    const fmtQty = (qty: number) =>
+                      qty % 1 === 0 ? qty.toString() : qty < 0.01 ? qty.toFixed(4) : qty.toFixed(3).replace(/\.?0+$/, '')
+
+                    const BillSheet = () => (
+                      <div className="space-y-4">
+                        {/* ── Document header ── */}
+                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                          <div className="bg-slate-900 text-white text-center py-3 px-4">
+                            <p className="text-base sm:text-lg font-bold tracking-wide uppercase">Ingredient Validation Sheet</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{enquiry.quotationNumber}</p>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-slate-100 border-t border-slate-200">
+                            <div className="px-4 py-3">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Client</p>
+                              <p className="text-sm font-semibold text-slate-800 truncate">{enquiry.clientName}</p>
+                            </div>
+                            <div className="px-4 py-3">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Event Date</p>
+                              <p className="text-sm font-semibold text-slate-800">
+                                {new Date(enquiry.eventDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </p>
+                            </div>
+                            <div className="px-4 py-3">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">NO OF Guests</p>
+                              <p className="text-sm font-bold text-slate-800">{enquiry.peopleCount}</p>
+                            </div>
+                            <div className="px-4 py-3">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Items</p>
+                              <p className="text-sm font-bold text-slate-800">{groceryItems.length}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ── Table or empty state ── */}
+                        {groceryItems.length === 0 ? (
+                          <div className="border-2 border-dashed border-slate-200 rounded-xl py-16 text-center space-y-3">
+                            <UtensilsCrossed className="w-10 h-10 text-slate-300 mx-auto" />
+                            <p className="text-sm font-semibold text-slate-500">No grocery items yet</p>
+                            {menuDerived.length > 0 ? (
+                              <button onClick={handleSyncFromMenu}
+                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors">
+                                <RefreshCw className="w-4 h-4" />Sync {menuDerived.length} ingredients from Menu
+                              </button>
+                            ) : (
+                              <p className="text-xs text-slate-400">Add dishes with ingredients in the <strong>Menu</strong> tab first</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                            <div className="overflow-x-auto">
+                              <div className="min-w-[560px]">
+                                {/* Column headers */}
+                                <div className="flex bg-slate-800 text-white text-xs font-bold uppercase tracking-wide sticky top-0 z-10">
+                                  <div className="w-11 shrink-0 px-3 py-3 border-r border-slate-700 text-center">Sl</div>
+                                  <div className="flex-1 min-w-[150px] px-3 py-3 border-r border-slate-700">Particular Names</div>
+                                  <div className="w-24 shrink-0 px-2 py-3 border-r border-slate-700 text-center">Qty</div>
+                                  <div className="w-20 shrink-0 px-2 py-3 border-r border-slate-700 text-center hidden sm:block">Unit</div>
+                                  <div className="w-28 shrink-0 px-2 py-3 border-r border-slate-700 text-right">Rate (₹)</div>
+                                  <div className="w-28 shrink-0 px-3 py-3 text-right">Amount (₹)</div>
+                                </div>
+
+                                {/* Section banner */}
+                                <div className="flex items-center justify-between bg-emerald-700 text-white px-4 py-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black">A</span>
+                                    <span className="w-px h-3 bg-emerald-500" />
+                                    <span className="text-xs font-bold uppercase tracking-widest">Grocery</span>
+                                    <span className="text-[10px] text-emerald-300">{groceryItems.length} items</span>
+                                  </div>
+                                  <span className="text-xs font-bold">{groceryTotal > 0 ? `₹${Math.round(groceryTotal).toLocaleString()}` : '—'}</span>
+                                </div>
+
+                                {/* Editable data rows */}
+                                {groceryItems.map((item: any, i: number) => {
+                                  const amount = Number(item.qty) * Number(item.rate)
+                                  const isEven = i % 2 === 0
+                                  return (
+                                    <div key={item.id}
+                                      className={`flex border-t border-slate-100 ${isEven ? 'bg-white' : 'bg-slate-50/50'}`}>
+                                      <div className="w-11 shrink-0 px-2 flex items-center justify-center border-r border-slate-100 text-xs text-slate-400 font-mono">{i + 1}</div>
+                                      <div className="flex-1 min-w-[150px] border-r border-slate-100">
+                                        <Cell value={item.itemName} costId={item.id} field="itemName" cls="font-medium text-slate-800 w-full" />
+                                      </div>
+                                      <div className="w-24 shrink-0 border-r border-slate-100">
+                                        <Cell value={Number(item.qty)} display={fmtQty(Number(item.qty))} costId={item.id} field="qty" numeric cls="text-center font-mono text-slate-700 w-full" />
+                                      </div>
+                                      <div className="w-20 shrink-0 border-r border-slate-100 hidden sm:block">
+                                        <Cell value={item.unit} costId={item.id} field="unit" cls="text-center text-slate-500 w-full" />
+                                      </div>
+                                      <div className="w-28 shrink-0 border-r border-slate-100">
+                                        <Cell value={Number(item.rate)} display={`₹${Number(item.rate).toLocaleString()}`} costId={item.id} field="rate" numeric cls="text-right font-mono text-slate-700 w-full" />
+                                      </div>
+                                      <div className="w-28 shrink-0 px-3 flex items-center justify-end">
+                                        <span className={`text-sm font-semibold whitespace-nowrap ${amount > 0 ? 'text-slate-800' : 'text-slate-300'}`}>
+                                          {amount > 0 ? `₹${Math.round(amount).toLocaleString()}` : '—'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+
+                                {/* Total row */}
+                                <div className="flex border-t-2 border-emerald-200 bg-emerald-50">
+                                  <div className="w-11 shrink-0 px-2 py-3 border-r border-emerald-200 flex items-center justify-center">
+                                    <span className="text-xs font-black text-emerald-700">A</span>
+                                  </div>
+                                  <div className="flex-1 min-w-[150px] border-r border-emerald-200 px-3 py-3 flex items-center">
+                                    <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Total Grocery</span>
+                                  </div>
+                                  <div className="w-24 shrink-0 border-r border-emerald-200" />
+                                  <div className="w-20 shrink-0 border-r border-emerald-200 hidden sm:block" />
+                                  <div className="w-28 shrink-0 border-r border-emerald-200" />
+                                  <div className="w-28 shrink-0 px-3 py-3 flex items-center justify-end">
+                                    <span className="text-sm font-bold text-emerald-800">{groceryTotal > 0 ? `₹${Math.round(groceryTotal).toLocaleString()}` : '—'}</span>
+                                  </div>
+                                </div>
+
+                                {/* Bill Value row */}
+                                <div className="flex bg-slate-900 text-white border-t border-slate-700">
+                                  <div className="w-11 shrink-0 px-2 py-3 border-r border-slate-700 flex items-center justify-center">
+                                    <span className="text-xs font-black">I</span>
+                                  </div>
+                                  <div className="flex-1 px-3 py-3 flex items-center">
+                                    <span className="text-sm font-bold uppercase tracking-wide">Bill Value</span>
+                                  </div>
+                                  <div className="w-28 shrink-0 px-3 py-3 flex items-center justify-end">
+                                    <span className="text-sm font-bold">{groceryTotal > 0 ? `₹${Math.round(groceryTotal).toLocaleString()}` : '—'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {isEditable && groceryItems.length > 0 && (
+                          <p className="text-xs text-slate-400 text-center">
+                            Click <span className="font-semibold text-emerald-600">Name</span>, <span className="font-semibold text-emerald-600">Qty</span>, <span className="font-semibold text-emerald-600">Unit</span> or <span className="font-semibold text-emerald-600">Rate</span> to edit · <kbd className="px-1 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Enter</kbd> save · <kbd className="px-1 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Esc</kbd> cancel
+                          </p>
+                        )}
+                        {isLocked && (
+                          <p className="text-xs text-indigo-500 text-center flex items-center justify-center gap-1">
+                            <Lock className="w-3 h-3" />Quotation is locked — use Revise Quotation to edit
+                          </p>
+                        )}
+                      </div>
+                    )
+
+                    return (
+                      <>
+                        <div>
+                          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Table2 className="w-4 h-4 text-emerald-600" />
+                              <h2 className="text-base font-semibold text-slate-900">Ingredient Validation</h2>
+                              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">Grocery Sheet</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {menuDerived.length > 0 && (
+                                <button onClick={handleSyncFromMenu}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors">
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Re-sync from Menu</span>
+                                  <span className="sm:hidden">Sync</span>
+                                </button>
+                              )}
+                              <button onClick={() => setIsValidationMaximized(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors">
+                                <Maximize2 className="w-3.5 h-3.5" />Expand
+                              </button>
+                            </div>
+                          </div>
+                          <BillSheet />
+                        </div>
+
+                        {/* ── Fullscreen modal ── */}
+                        {isValidationMaximized && (
+                          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-[2px] flex flex-col">
+                            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-white border-b border-slate-200 shrink-0 shadow-sm">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <Table2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                                <div className="min-w-0">
+                                  <h2 className="text-base font-bold text-slate-900 truncate">Ingredient Validation Sheet</h2>
+                                  <p className="text-xs text-slate-500 truncate">{enquiry.quotationNumber} · {enquiry.clientName} · {enquiry.peopleCount} guests</p>
+                                </div>
+                                {isEditable && groceryItems.length > 0 && (
+                                  <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg whitespace-nowrap hidden md:inline">
+                                    Click any cell to edit
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 ml-3">
+                                {menuDerived.length > 0 && (
+                                  <button onClick={handleSyncFromMenu}
+                                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors">
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Re-sync</span>
+                                  </button>
+                                )}
+                                <button onClick={() => setIsValidationMaximized(false)}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl border border-slate-200 transition-colors">
+                                  <Minimize2 className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Close</span>
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50">
+                              <div className="max-w-4xl mx-auto">
+                                <BillSheet />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
+
+                  {/* ════════ PRICING TAB ════════ */}
                   {activeTab === 'pricing' && (
                     <div className="space-y-5">
                       <div>
@@ -823,7 +1615,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                         <p className="text-xs text-slate-500 mt-0.5">Set the final selling price to quote the client</p>
                       </div>
 
-                      {/* Internal cost read-only */}
+                      {/* Internal cost */}
                       <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
                         <div>
                           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Internal Cost</p>
@@ -835,7 +1627,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                       </div>
 
-                      {/* Menu Total reference */}
+                      {/* Menu total reference */}
                       {(dishesTotal + servicesTotal) > 0 && (
                         <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
                           <div>
@@ -844,12 +1636,9 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                           </div>
                           <div className="flex items-center gap-3">
                             <p className="text-xl font-bold text-blue-800">₹{(dishesTotal + servicesTotal).toLocaleString()}</p>
-                            {finalPrice !== dishesTotal + servicesTotal && (
-                              <button
-                                type="button"
-                                onClick={() => setFinalPrice(dishesTotal + servicesTotal)}
-                                className="text-xs font-semibold text-blue-600 bg-white border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap"
-                              >
+                            {finalPrice !== dishesTotal + servicesTotal && isEditable && (
+                              <button type="button" onClick={() => setFinalPrice(dishesTotal + servicesTotal)}
+                                className="text-xs font-semibold text-blue-600 bg-white border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap">
                                 Use ↑
                               </button>
                             )}
@@ -857,25 +1646,36 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                       )}
 
+                      {/* Price inputs */}
                       <div className="space-y-4">
                         <div>
                           <label className="text-sm font-semibold text-slate-700 mb-1.5 block">Final Selling Price (₹)</label>
-                          <input type="number" min="0" value={finalPrice} onChange={e => setFinalPrice(Number(e.target.value))}
-                            className="w-full px-4 py-3 text-lg font-semibold border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="0" />
+                          {isEditable
+                            ? <input type="number" min="0" value={finalPrice} onChange={e => setFinalPrice(Number(e.target.value))}
+                                className="w-full px-4 py-3 text-lg font-semibold border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="0" />
+                            : <div className="px-4 py-3 text-lg font-semibold border border-slate-200 rounded-xl bg-slate-50 text-slate-700">₹{finalPrice.toLocaleString()}</div>
+                          }
                         </div>
                         <div>
                           <label className="text-sm font-semibold text-slate-700 mb-1.5 block">Advance Amount (₹)</label>
-                          <input type="number" min="0" value={advanceAmount} onChange={e => setAdvanceAmount(Number(e.target.value))}
-                            className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="0" />
+                          {isEditable
+                            ? <input type="number" min="0" value={advanceAmount} onChange={e => setAdvanceAmount(Number(e.target.value))}
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="0" />
+                            : <div className="px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-700">₹{advanceAmount.toLocaleString()}</div>
+                          }
                         </div>
                         <div>
                           <label className="text-sm font-semibold text-slate-700 mb-1.5 block">Payment Terms</label>
-                          <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
-                            placeholder="e.g. 50% advance, balance on event day"
-                            className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm" />
+                          {isEditable
+                            ? <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
+                                placeholder="e.g. 50% advance, balance on event day"
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm" />
+                            : <div className="px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 text-sm">{paymentTerms || '—'}</div>
+                          }
                         </div>
                       </div>
 
+                      {/* Margin summary */}
                       {finalPrice > 0 && (
                         <div className="grid grid-cols-3 gap-3">
                           <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
@@ -893,91 +1693,185 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                       )}
 
-                      {!isTerminal && (
+                      {isEditable && (
                         <button onClick={handleSavePricing} disabled={savingPricing || finalPrice <= 0}
                           className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                          <CheckCircle className="w-5 h-5" />
-                          {savingPricing ? 'Saving...' : enquiry.status === 'PENDING' ? 'Save & Mark as Price Quoted' : 'Update Pricing'}
+                          {savingPricing
+                            ? <><Loader2 className="w-5 h-5 animate-spin" />Saving...</>
+                            : <><CheckCircle className="w-5 h-5" />Finalise &amp; Send Quotation{revisionNumber > 1 ? ` (Rev. ${revisionNumber})` : ''}</>
+                          }
                         </button>
                       )}
 
-                      {enquiry.status === 'PRICE_QUOTED' && Number(enquiry.finalPrice) > 0 && (
-                        <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-sm text-indigo-700 font-medium text-center">
-                          Quoted: ₹{Number(enquiry.finalPrice).toLocaleString()}
-                          {Number(enquiry.advanceAmount) > 0 && ` · Advance: ₹${Number(enquiry.advanceAmount).toLocaleString()}`}
-                          {enquiry.paymentTerms && ` · ${enquiry.paymentTerms}`}
+                      {isLocked && (
+                        <div className="flex items-center gap-2 p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700">
+                          <Lock className="w-4 h-4 shrink-0" />
+                          Pricing is locked. Use <strong>Revise Quotation</strong> in the sidebar to make changes.
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* ══════════ HISTORY TAB ══════════ */}
-                  {activeTab === 'history' && (
-                    <div className="space-y-6">
-                      <div>
-                        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Add Note</h2>
-                        <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)}
-                          placeholder="Add a note or update..." rows={3}
-                          className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent resize-none" />
-                        <button onClick={handleAddNote} disabled={addingNote || !noteInput.trim()}
-                          className="mt-3 flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                          <Send className="w-4 h-4" />
-                          {addingNote ? 'Adding...' : 'Add Note'}
-                        </button>
-                      </div>
-                      <div>
-                        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Activity Timeline</h2>
-                        {enquiry.updates && enquiry.updates.length > 0 ? (
-                          <div className="space-y-4">
-                            {enquiry.updates.map((update: any) => (
-                              <div key={update.id} className="flex items-start gap-3">
-                                <div className="mt-0.5 p-1.5 bg-slate-100 rounded-lg">{getUpdateIcon(update.updateType)}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-slate-700">{update.description}</p>
-                                  <p className="text-xs text-slate-400 mt-1">
-                                    {new Date(update.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
+                  {/* ════════ HISTORY TAB ════════ */}
+                  {activeTab === 'history' && (() => {
+                    const sortedUpdates = [...(enquiry.updates || [])].sort(
+                      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                    )
+                    type RevGroup = { revNum: number; title: string; updates: any[]; isCurrent: boolean }
+                    const groups: RevGroup[] = []
+                    let cur: RevGroup = { revNum: 1, title: 'Quotation — Rev. 1', updates: [], isCurrent: false }
+                    for (const upd of sortedUpdates) {
+                      if (upd.updateType === 'REVISION') {
+                        groups.push(cur)
+                        const match = upd.description.match(/Revision (\d+)/)
+                        const newNum = match ? parseInt(match[1]) : cur.revNum + 1
+                        cur = { revNum: newNum, title: `Revision — Rev. ${newNum}`, updates: [upd], isCurrent: false }
+                      } else {
+                        cur.updates.push(upd)
+                      }
+                    }
+                    cur.isCurrent = !isTerminal
+                    groups.push(cur)
+
+                    return (
+                      <div className="space-y-5">
+                        {groups.length === 0 || (groups.length === 1 && groups[0].updates.length === 0) ? (
                           <p className="text-slate-400 text-sm text-center py-4">No activity yet</p>
+                        ) : (
+                          [...groups].reverse().map((group) => (
+                            <div key={group.revNum} className="space-y-1">
+                              <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider ${
+                                group.revNum === 1
+                                  ? 'bg-slate-100 text-slate-500'
+                                  : group.isCurrent
+                                    ? 'bg-violet-100 text-violet-700 border border-violet-200'
+                                    : 'bg-violet-50 text-violet-500 border border-violet-100'
+                              }`}>
+                                {group.revNum > 1 ? <RotateCcw className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+                                {group.title}
+                                {group.isCurrent && (
+                                  <span className="ml-auto text-[10px] bg-violet-600 text-white px-1.5 py-0.5 rounded-md">Current</span>
+                                )}
+                              </div>
+                              {group.updates.length === 0 ? (
+                                <p className="text-xs text-slate-400 pl-4 py-2">No activity in this revision</p>
+                              ) : (
+                                <div className="pl-3 border-l-2 border-slate-100 ml-3 space-y-3 pt-2 pb-1">
+                                  {[...group.updates].reverse().map((update: any) => (
+                                    <div key={update.id} className="flex items-start gap-3">
+                                      <div className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${update.updateType === 'REVISION' ? 'bg-violet-100' : 'bg-slate-100'}`}>
+                                        {getUpdateIcon(update.updateType)}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className={`text-sm ${update.updateType === 'REVISION' ? 'font-semibold text-violet-800' : 'text-slate-700'}`}>
+                                          {update.description}
+                                        </p>
+                                        {(update.oldValue || update.newValue) && (
+                                          <p className="text-xs text-slate-400 mt-0.5">
+                                            {update.oldValue && <span className="line-through mr-1">{update.oldValue}</span>}
+                                            {update.newValue && <span className="text-indigo-600 font-medium">{update.newValue}</span>}
+                                          </p>
+                                        )}
+                                        <p className="text-xs text-slate-400 mt-0.5">
+                                          {new Date(update.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))
                         )}
                       </div>
-                    </div>
-                  )}
+                    )
+                  })()}
 
                 </div>
               </div>
             </div>
 
-            {/* RIGHT: Status + Summary */}
+            {/* RIGHT: Sidebar */}
             <div className="space-y-4">
+
+              {/* Actions card */}
               <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Update Status</h2>
-                <div className="space-y-2">
-                  <button onClick={() => handleStatusUpdate('PENDING')}
-                    disabled={updating || enquiry.status === 'PENDING' || isTerminal}
-                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'PENDING' ? 'bg-amber-100 text-amber-700 border-2 border-amber-300' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'} disabled:opacity-50 disabled:cursor-not-allowed`}>
-                    <Clock className="w-4 h-4" />Planning
-                  </button>
-                  <button onClick={() => handleStatusUpdate('SUCCESS')}
-                    disabled={updating || isTerminal}
-                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-300' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'} disabled:opacity-50 disabled:cursor-not-allowed`}>
-                    <CheckCircle className="w-4 h-4" />
-                    Confirm & Convert
-                    {enquiry.status !== 'SUCCESS' && <span className="ml-auto text-xs opacity-60">→ Event</span>}
-                  </button>
-                  <button onClick={() => handleStatusUpdate('LOST')}
-                    disabled={updating || isTerminal}
-                    className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${enquiry.status === 'LOST' ? 'bg-red-100 text-red-700 border-2 border-red-300' : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'} disabled:opacity-50 disabled:cursor-not-allowed`}>
-                    <XCircle className="w-4 h-4" />Mark as Lost
-                  </button>
-                </div>
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Actions</h2>
+
+                {/* PENDING */}
+                {enquiry.status === 'PENDING' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl mb-3">
+                      <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-amber-700">Planning{revisionNumber > 1 ? ` · Rev. ${revisionNumber}` : ''}</p>
+                        <p className="text-xs text-amber-600 mt-0.5">Edit menu, costing &amp; pricing freely</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setActiveTab('pricing')}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-all shadow-sm">
+                      <DollarSign className="w-4 h-4" />Go to Pricing &amp; Quote
+                    </button>
+                    <button onClick={openLostModal} disabled={updating}
+                      className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-50 transition-all">
+                      <XCircle className="w-4 h-4" />Mark as Lost
+                    </button>
+                  </div>
+                )}
+
+                {/* PRICE_QUOTED */}
+                {enquiry.status === 'PRICE_QUOTED' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-3 bg-indigo-50 border border-indigo-200 rounded-xl mb-3">
+                      <Lock className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-indigo-700">Quotation Sent</p>
+                        <p className="text-xs text-indigo-500 mt-0.5">Awaiting client decision</p>
+                      </div>
+                    </div>
+                    <button onClick={openConvertModal} disabled={updating}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50">
+                      {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      Confirm &amp; Convert to Event
+                    </button>
+                    <button onClick={() => openReviseModal(revisionNumber)} disabled={revising}
+                      className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50 transition-all">
+                      {revising ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                      Revise Quotation
+                      <span className="ml-auto text-xs opacity-60">→ Rev. {revisionNumber + 1}</span>
+                    </button>
+                    <button onClick={openLostModal} disabled={updating}
+                      className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-50 transition-all">
+                      <XCircle className="w-4 h-4" />Mark as Lost
+                    </button>
+                  </div>
+                )}
+
+                {/* SUCCESS */}
+                {enquiry.status === 'SUCCESS' && (
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                    <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-emerald-700">Confirmed</p>
+                    {enquiry.convertedEvent && (
+                      <button onClick={() => router.push(`/events/${enquiry.convertedEvent.id}`)}
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-600 underline hover:text-emerald-800">
+                        View Event →
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* LOST */}
+                {enquiry.status === 'LOST' && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-center">
+                    <XCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-red-600">Lost</p>
+                    <p className="text-xs text-red-400 mt-1">This enquiry is closed</p>
+                  </div>
+                )}
               </div>
 
-              {/* Quick Summary */}
+              {/* Summary card */}
               <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                 <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Summary</h2>
                 <div className="space-y-2 text-sm">
@@ -1005,6 +1899,20 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                   )}
                 </div>
               </div>
+
+              {/* Add Note card */}
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Add Note</h2>
+                <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)}
+                  placeholder="Add a note or update..." rows={3}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent resize-none" />
+                <button onClick={handleAddNote} disabled={addingNote || !noteInput.trim()}
+                  className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50">
+                  {addingNote ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {addingNote ? 'Adding...' : 'Add Note'}
+                </button>
+              </div>
+
             </div>
           </div>
         </div>
@@ -1017,7 +1925,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
               <h3 className="text-lg font-semibold text-slate-900">Download Quotation</h3>
               <button onClick={() => setIsDownloadModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
-                <XCircle className="w-5 h-5" />
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 space-y-5">
@@ -1054,6 +1962,13 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       )}
+
+      {/* Confirm Modal */}
+      {modal && <ConfirmModal {...modal} />}
+
+      {/* Toast Stack */}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+
     </PageLayout>
   )
 }

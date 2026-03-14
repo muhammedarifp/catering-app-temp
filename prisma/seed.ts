@@ -27,6 +27,7 @@ async function clearAll() {
   await prisma.enquiry.deleteMany()
   await prisma.dishIngredient.deleteMany()
   await prisma.dish.deleteMany()
+  await prisma.ingredient.deleteMany()
   await prisma.todo.deleteMany()
   await prisma.notificationSetting.deleteMany()
   await prisma.user.deleteMany()
@@ -65,6 +66,139 @@ async function main() {
       lowStockAlert: true,
     },
   })
+
+  // ── Ingredient Master ─────────────────────────────────────────────────────
+  // canonical units: kg for solids/pastes/powders, L for liquids, piece for countables, g for Saffron only
+  const ingredientMasterData = [
+    // Grains
+    { name: 'Kaima Rice',                                   pricePerUnit: 120,  unit: 'kg' },
+    { name: 'Basmati Rice',                                 pricePerUnit: 100,  unit: 'kg' },
+    { name: 'Kerala Boiled Rice',                           pricePerUnit: 60,   unit: 'kg' },
+    // Meats & Seafood
+    { name: 'Beef',                                         pricePerUnit: 320,  unit: 'kg' },
+    { name: 'Chicken',                                      pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Mutton',                                       pricePerUnit: 700,  unit: 'kg' },
+    { name: 'Chicken Breast',                               pricePerUnit: 250,  unit: 'kg' },
+    { name: 'Fish (Seer/King Fish)',                        pricePerUnit: 500,  unit: 'kg' },
+    { name: 'Fish (Tilapia / Mackerel)',                    pricePerUnit: 250,  unit: 'kg' },
+    { name: 'Tiger Prawns',                                 pricePerUnit: 800,  unit: 'kg' },
+    // Vegetables
+    { name: 'Onion',                                        pricePerUnit: 40,   unit: 'kg' },
+    { name: 'Tomato',                                       pricePerUnit: 30,   unit: 'kg' },
+    { name: 'Potato',                                       pricePerUnit: 30,   unit: 'kg' },
+    { name: 'Cucumber',                                     pricePerUnit: 30,   unit: 'kg' },
+    { name: 'Shallots',                                     pricePerUnit: 60,   unit: 'kg' },
+    { name: 'Grated Coconut',                               pricePerUnit: 60,   unit: 'kg' },
+    { name: 'Mixed Vegetables',                             pricePerUnit: 50,   unit: 'kg' },
+    { name: 'Mixed Vegetables (Drumstick, Yam, Raw Banana)', pricePerUnit: 60, unit: 'kg' },
+    { name: 'Cabbage / Beans / Carrot',                     pricePerUnit: 40,   unit: 'kg' },
+    { name: 'Elephant Yam',                                 pricePerUnit: 80,   unit: 'kg' },
+    { name: 'Peas',                                         pricePerUnit: 80,   unit: 'kg' },
+    { name: 'Tender Coconut Pulp',                          pricePerUnit: 100,  unit: 'kg' },
+    { name: 'Mixed Seasonal Fruits',                        pricePerUnit: 150,  unit: 'kg' },
+    // Herbs & Aromatics
+    { name: 'Mint Leaves',                                  pricePerUnit: 100,  unit: 'kg' },
+    { name: 'Fresh Mint Leaves',                            pricePerUnit: 100,  unit: 'kg' },
+    { name: 'Coriander Leaves',                             pricePerUnit: 80,   unit: 'kg' },
+    { name: 'Fresh Ginger',                                 pricePerUnit: 80,   unit: 'kg' },
+    { name: 'Ginger',                                       pricePerUnit: 80,   unit: 'kg' },
+    // Dairy & Eggs
+    { name: 'Milk',                                         pricePerUnit: 50,   unit: 'L' },
+    { name: 'Curd',                                         pricePerUnit: 50,   unit: 'L' },
+    { name: 'Curd (Yogurt)',                                pricePerUnit: 50,   unit: 'L' },
+    { name: 'Butter',                                       pricePerUnit: 500,  unit: 'kg' },
+    { name: 'Condensed Milk',                               pricePerUnit: 150,  unit: 'L' },
+    { name: 'Ghee',                                         pricePerUnit: 600,  unit: 'kg' },
+    { name: 'Egg',                                          pricePerUnit: 8,    unit: 'piece' },
+    // Oils
+    { name: 'Coconut Oil',                                  pricePerUnit: 200,  unit: 'L' },
+    { name: 'Oil',                                          pricePerUnit: 120,  unit: 'L' },
+    // Spices & Masalas
+    { name: 'Ginger Garlic Paste',                          pricePerUnit: 80,   unit: 'kg' },
+    { name: 'Biriyani Masala',                              pricePerUnit: 300,  unit: 'kg' },
+    { name: 'Garam Masala',                                 pricePerUnit: 300,  unit: 'kg' },
+    { name: 'Sambar Powder',                                pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Red Chilli Powder',                            pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Turmeric Powder',                              pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Turmeric',                                     pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Cumin Powder',                                 pricePerUnit: 250,  unit: 'kg' },
+    { name: 'Cardamom Powder',                              pricePerUnit: 2000, unit: 'kg' },
+    { name: 'Fennel Seeds',                                 pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Mustard Seeds',                                pricePerUnit: 100,  unit: 'kg' },
+    { name: 'Sesame Seeds',                                 pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Shawarma Masala',                              pricePerUnit: 300,  unit: 'kg' },
+    { name: 'Spices (Cumin, Coriander, Chilli)',            pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Saffron',                                      pricePerUnit: 300,  unit: 'g' },
+    // Whole Spices (per piece)
+    { name: 'Cinnamon Stick',                               pricePerUnit: 5,    unit: 'piece' },
+    { name: 'Cardamom Pods',                                pricePerUnit: 3,    unit: 'piece' },
+    { name: 'Red Chilli',                                   pricePerUnit: 2,    unit: 'piece' },
+    { name: 'Curry Leaves',                                 pricePerUnit: 1,    unit: 'piece' },
+    { name: 'Kudampuli (Gamboge)',                          pricePerUnit: 10,   unit: 'piece' },
+    { name: 'Green Chilli',                                 pricePerUnit: 2,    unit: 'piece' },
+    // Pulses
+    { name: 'Toor Dal',                                     pricePerUnit: 120,  unit: 'kg' },
+    { name: 'Black Chickpeas (Kadala)',                     pricePerUnit: 120,  unit: 'kg' },
+    // Dry Goods
+    { name: 'Sugar',                                        pricePerUnit: 45,   unit: 'kg' },
+    { name: 'Salt',                                         pricePerUnit: 20,   unit: 'kg' },
+    { name: 'Tea Leaves',                                   pricePerUnit: 400,  unit: 'kg' },
+    { name: 'Green Tea Leaves',                             pricePerUnit: 600,  unit: 'kg' },
+    { name: 'Maida',                                        pricePerUnit: 40,   unit: 'kg' },
+    { name: 'Maida (All Purpose Flour)',                    pricePerUnit: 40,   unit: 'kg' },
+    { name: 'Rice Flour',                                   pricePerUnit: 50,   unit: 'kg' },
+    { name: 'Semiya (Vermicelli)',                          pricePerUnit: 80,   unit: 'kg' },
+    { name: 'Cashew Nuts',                                  pricePerUnit: 800,  unit: 'kg' },
+    { name: 'Raisins',                                      pricePerUnit: 400,  unit: 'kg' },
+    { name: 'Ice',                                          pricePerUnit: 10,   unit: 'kg' },
+    { name: 'Yeast',                                        pricePerUnit: 500,  unit: 'kg' },
+    { name: 'Tamarind',                                     pricePerUnit: 100,  unit: 'kg' },
+    // Pickles & Condiments
+    { name: 'Mango Pickle',                                 pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Lime Pickle',                                  pricePerUnit: 200,  unit: 'kg' },
+    { name: 'Garlic Sauce',                                 pricePerUnit: 200,  unit: 'kg' },
+    // Liquids
+    { name: 'Coconut Milk',                                 pricePerUnit: 80,   unit: 'L' },
+    { name: 'Lime Juice',                                   pricePerUnit: 50,   unit: 'L' },
+    { name: 'Lemon Juice',                                  pricePerUnit: 50,   unit: 'L' },
+    { name: 'Honey',                                        pricePerUnit: 300,  unit: 'kg' },
+    { name: 'Date Syrup',                                   pricePerUnit: 400,  unit: 'L' },
+    { name: 'Water',                                        pricePerUnit: 1,    unit: 'L' },
+    // Packaged items
+    { name: 'Pappadam',                                     pricePerUnit: 2,    unit: 'piece' },
+    { name: 'Pita Bread',                                   pricePerUnit: 30,   unit: 'piece' },
+    { name: 'Tender Coconut',                               pricePerUnit: 50,   unit: 'piece' },
+    { name: 'Mineral Water Bottle 500ml',                   pricePerUnit: 15,   unit: 'piece' },
+  ]
+
+  const ingredientMasterMap: Record<string, { id: string; unit: string }> = {}
+  for (const ing of ingredientMasterData) {
+    const created = await prisma.ingredient.create({ data: ing })
+    ingredientMasterMap[ing.name] = { id: created.id, unit: ing.unit }
+  }
+  console.log(`✅ Created ${ingredientMasterData.length} ingredient master records`)
+
+  // Unit normalisation helpers — converts dish-recipe units to ingredient master units
+  // so that qty × pricePerUnit gives correct cost in master-unit currency
+  function normalizeIngQty(qty: number, fromUnit: string, masterUnit: string): { qty: number; unit: string } {
+    if (fromUnit === masterUnit) return { qty, unit: masterUnit }
+    // weight
+    if (fromUnit === 'g' && masterUnit === 'kg') return { qty: qty / 1000, unit: 'kg' }
+    // volume
+    if (fromUnit === 'ml' && masterUnit === 'L') return { qty: qty / 1000, unit: 'L' }
+    if ((fromUnit === 'g' || fromUnit === 'ml') && masterUnit === 'L') return { qty: qty / 1000, unit: 'L' }
+    // tbsp
+    if (fromUnit === 'tbsp' && masterUnit === 'kg') return { qty: qty * 0.012, unit: 'kg' }
+    if (fromUnit === 'tbsp' && masterUnit === 'L')  return { qty: qty * 0.015, unit: 'L' }
+    // tsp
+    if (fromUnit === 'tsp' && masterUnit === 'kg')  return { qty: qty * 0.004, unit: 'kg' }
+    if (fromUnit === 'tsp' && masterUnit === 'L')   return { qty: qty * 0.005, unit: 'L' }
+    // pinch
+    if (fromUnit === 'pinch' && masterUnit === 'kg') return { qty: qty * 0.0005, unit: 'kg' }
+    // bottle → piece
+    if (fromUnit === 'bottle' && masterUnit === 'piece') return { qty, unit: 'piece' }
+    return { qty, unit: fromUnit }
+  }
 
   // ── Dishes ───────────────────────────────────────────────────────────────────
   // Categories match the menu PDF section structure
@@ -579,12 +713,25 @@ async function main() {
     const created = await prisma.dish.create({
       data: {
         ...dishData,
-        ingredients: { create: ingredients },
+        ingredients: {
+          create: ingredients.map((ing: { ingredientName: string; quantity: number; unit: string }) => {
+            const master = ingredientMasterMap[ing.ingredientName]
+            const normalized = master
+              ? normalizeIngQty(ing.quantity, ing.unit, master.unit)
+              : { qty: ing.quantity, unit: ing.unit }
+            return {
+              ingredientName: ing.ingredientName,
+              quantity: normalized.qty,
+              unit: normalized.unit,
+              ingredientId: master?.id ?? null,
+            }
+          }),
+        },
       },
     })
     dishIds[dish.name] = created.id
   }
-  console.log(`✅ Created ${dishes.length} dishes`)
+  console.log(`✅ Created ${dishes.length} dishes with normalized ingredient quantities`)
 
   // ── Events ───────────────────────────────────────────────────────────────────
   type EventDishInput = { name: string; qty: number; price: number }

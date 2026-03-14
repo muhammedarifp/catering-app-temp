@@ -11,6 +11,7 @@ function serializeEnquiry(enquiry: any): any {
     totalAmount: Number(enquiry.totalAmount),
     finalPrice: Number(enquiry.finalPrice ?? 0),
     advanceAmount: Number(enquiry.advanceAmount ?? 0),
+    revisionNumber: enquiry.revisionNumber ?? 1,
     costItems: enquiry.costItems?.map((c: any) => ({
       ...c,
       qty: Number(c.qty),
@@ -27,6 +28,10 @@ function serializeEnquiry(enquiry: any): any {
         ingredients: d.dish.ingredients?.map((i: any) => ({
           ...i,
           quantity: Number(i.quantity),
+          ingredient: i.ingredient ? {
+            ...i.ingredient,
+            pricePerUnit: Number(i.ingredient.pricePerUnit),
+          } : null,
         })),
       } : undefined,
     })),
@@ -40,6 +45,46 @@ function serializeEnquiry(enquiry: any): any {
       paidAmount: Number(enquiry.convertedEvent.paidAmount),
       balanceAmount: Number(enquiry.convertedEvent.balanceAmount),
     } : undefined,
+  }
+}
+
+export async function reviseEnquiry(id: string) {
+  try {
+    const enquiry = await prisma.enquiry.findUnique({
+      where: { id },
+      select: { status: true, revisionNumber: true },
+    })
+
+    if (!enquiry) return { success: false, error: 'Enquiry not found' }
+    if (enquiry.status !== 'PRICE_QUOTED') {
+      return { success: false, error: 'Only a quoted enquiry can be revised' }
+    }
+
+    const newRevision = (enquiry.revisionNumber || 1) + 1
+
+    const updated = await prisma.enquiry.update({
+      where: { id },
+      data: {
+        status: 'PENDING',
+        revisionNumber: newRevision,
+        finalPrice: 0,
+        updates: {
+          create: {
+            updateType: 'REVISION',
+            description: `Revision ${newRevision} started — quotation reopened for changes`,
+            oldValue: 'PRICE_QUOTED',
+            newValue: 'PENDING',
+          },
+        },
+      },
+    })
+
+    revalidatePath(`/enquiries/${id}`)
+    revalidatePath('/enquiries')
+    return { success: true, data: serializeEnquiry(updated) }
+  } catch (error) {
+    console.error('Failed to revise enquiry:', error)
+    return { success: false, error: 'Failed to revise enquiry' }
   }
 }
 
@@ -318,7 +363,15 @@ export async function getEnquiryById(id: string) {
       include: {
         dishes: {
           include: {
-            dish: true,
+            dish: {
+              include: {
+                ingredients: {
+                  include: {
+                    ingredient: true,
+                  },
+                },
+              },
+            },
           },
         },
         services: true,

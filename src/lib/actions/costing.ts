@@ -72,6 +72,33 @@ export async function deleteCostItem(id: string) {
   }
 }
 
+export async function syncGroceryFromMenu(
+  enquiryId: string,
+  items: Array<{ itemName: string; qty: number; unit: string; rate: number }>
+) {
+  try {
+    await prisma.costItem.deleteMany({ where: { enquiryId, section: 'Grocery' } })
+    if (items.length > 0) {
+      await prisma.costItem.createMany({
+        data: items.map((item, i) => ({
+          enquiryId,
+          section: 'Grocery',
+          itemName: item.itemName,
+          qty: item.qty,
+          unit: item.unit,
+          rate: item.rate,
+          orderIndex: i,
+        })),
+      })
+    }
+    revalidatePath(`/enquiries/${enquiryId}`)
+    return { success: true }
+  } catch (error) {
+    console.error('syncGroceryFromMenu error:', error)
+    return { success: false, error: 'Failed to sync grocery from menu' }
+  }
+}
+
 export async function copyCostItemsToEvent(enquiryId: string, eventId: string) {
   try {
     const items = await prisma.costItem.findMany({ where: { enquiryId } })

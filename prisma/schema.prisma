@@ -73,6 +73,9 @@ model Enquiry {
   advanceAmount  Decimal  @default(0)
   paymentTerms   String   @default("")
 
+  // Revision tracking
+  revisionNumber Int          @default(1)
+
   // Status
   status        EnquiryStatus @default(PENDING)
 
