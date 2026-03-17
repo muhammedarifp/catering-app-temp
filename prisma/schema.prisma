@@ -8,6 +8,13 @@ datasource db {
   provider = "postgresql"
 }
 
+// Dish type classification
+enum DishType {
+  RECIPE  // has ingredients + labour cost; estimatedCostPerPlate auto-calculated
+  LIVE    // live counter (e.g. juice); no ingredients; price entered per enquiry only
+  FIXED   // packaged/readymade; no ingredients; fixed pricePerPlate
+}
+
 // User Management
 enum UserRole {
   SUPER_ADMIN
@@ -263,7 +270,9 @@ model Dish {
   name                    String
   description             String?
   category                String   // e.g., "Appetizer", "Main Course", "Dessert"
+  dishType                DishType @default(RECIPE)
   estimatedCostPerPlate   Decimal  @default(0)
+  labourCost              Decimal  @default(0)
   pricePerPlate           Decimal  @default(0)
   priceUnit               String   @default("per plate") // per plate, per kg, per L, per ml, per item
   sellingPricePerPlate    Decimal  @default(0)

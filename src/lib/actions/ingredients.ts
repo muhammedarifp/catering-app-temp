@@ -123,10 +123,15 @@ export async function recalculateDishCost(dishId: string) {
 
         if (!dish) return
 
-        let totalCost = 0
+        // LIVE: no master price (entered per enquiry) — skip
+        // FIXED: pricePerPlate IS the operative price — skip
+        if (dish.dishType === 'LIVE' || dish.dishType === 'FIXED') return
+
+        // RECIPE: ingredient cost + labour cost
+        let ingredientCost = 0
         for (const dishIngredient of dish.ingredients) {
             if (dishIngredient.ingredient) {
-                totalCost += calculateIngredientCost(
+                ingredientCost += calculateIngredientCost(
                     Number(dishIngredient.quantity),
                     dishIngredient.unit,
                     Number(dishIngredient.ingredient.pricePerUnit),
@@ -135,16 +140,12 @@ export async function recalculateDishCost(dishId: string) {
             }
         }
 
-        // Update the dish's estimated cost
+        const totalCost = ingredientCost + Number(dish.labourCost)
+
         await prisma.dish.update({
             where: { id: dishId },
-            data: {
-                estimatedCostPerPlate: totalCost,
-            },
+            data: { estimatedCostPerPlate: totalCost },
         })
-
-        // We do NOT automatically update sellingPricePerPlate here to give admins control,
-        // they can see the margin changes visually.
     } catch (error) {
         console.error(`Failed to recalculate cost for dish ${dishId}:`, error)
     }

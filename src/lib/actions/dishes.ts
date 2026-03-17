@@ -4,17 +4,23 @@ import { revalidatePath } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { recalculateDishCost } from './ingredients'
 
-// Helper to serialize Decimal fields to numbers
+type DishType = 'RECIPE' | 'LIVE' | 'FIXED'
+
 function serializeDish(dish: any): any {
   return {
     ...dish,
+    dishType: dish.dishType ?? 'RECIPE',
     estimatedCostPerPlate: Number(dish.estimatedCostPerPlate),
+    labourCost: Number(dish.labourCost ?? 0),
     pricePerPlate: Number(dish.pricePerPlate ?? 0),
     priceUnit: dish.priceUnit ?? 'per plate',
     sellingPricePerPlate: Number(dish.sellingPricePerPlate ?? 0),
     ingredients: dish.ingredients?.map((ing: any) => ({
       ...ing,
       quantity: Number(ing.quantity),
+      ingredient: ing.ingredient
+        ? { ...ing.ingredient, pricePerUnit: Number(ing.ingredient.pricePerUnit) }
+        : null,
     })),
   }
 }
@@ -23,7 +29,9 @@ export async function createDish(data: {
   name: string
   description?: string
   category: string
+  dishType?: DishType
   estimatedCostPerPlate?: number
+  labourCost?: number
   pricePerPlate?: number
   priceUnit?: string
   sellingPricePerPlate?: number
@@ -32,11 +40,17 @@ export async function createDish(data: {
   imageUrl?: string
 }) {
   try {
+    const dishType = data.dishType ?? 'RECIPE'
+    // LIVE/FIXED dishes don't have ingredients or labour cost
+    const ingredients = dishType === 'RECIPE' ? data.ingredients : []
+
     const dish = await prisma.dish.create({
       data: {
         name: data.name,
         description: data.description,
         category: data.category,
+        dishType,
+        labourCost: dishType === 'RECIPE' ? (data.labourCost ?? 0) : 0,
         estimatedCostPerPlate: data.estimatedCostPerPlate || 0,
         pricePerPlate: data.pricePerPlate || 0,
         priceUnit: data.priceUnit || 'per plate',
@@ -44,7 +58,7 @@ export async function createDish(data: {
         isVeg: data.isVeg ?? true,
         imageUrl: data.imageUrl,
         ingredients: {
-          create: data.ingredients.map(i => ({
+          create: ingredients.map(i => ({
             ingredientName: i.ingredientName,
             quantity: i.quantity,
             unit: i.unit,
@@ -54,14 +68,14 @@ export async function createDish(data: {
       },
       include: {
         ingredients: {
-          include: {
-            ingredient: true,
-          },
+          include: { ingredient: true },
         },
       },
     })
 
-    await recalculateDishCost(dish.id)
+    if (dishType === 'RECIPE') {
+      await recalculateDishCost(dish.id)
+    }
 
     revalidatePath('/dishes')
     return { success: true, data: serializeDish(dish) }
@@ -80,14 +94,10 @@ export async function getDishes(category?: string, isActive?: boolean) {
       },
       include: {
         ingredients: {
-          include: {
-            ingredient: true,
-          },
+          include: { ingredient: true },
         },
       },
-      orderBy: {
-        name: 'asc',
-      },
+      orderBy: { name: 'asc' },
     })
 
     return { success: true, data: dishes.map(serializeDish) }
@@ -103,9 +113,7 @@ export async function getDishById(id: string) {
       where: { id },
       include: {
         ingredients: {
-          include: {
-            ingredient: true,
-          }
+          include: { ingredient: true },
         },
       },
     })
@@ -127,7 +135,9 @@ export async function updateDish(
     name?: string
     description?: string
     category?: string
+    dishType?: DishType
     estimatedCostPerPlate?: number
+    labourCost?: number
     pricePerPlate?: number
     priceUnit?: string
     sellingPricePerPlate?: number
@@ -139,27 +149,39 @@ export async function updateDish(
 ) {
   try {
     const { ingredients, ...dishData } = data
+    const dishType = dishData.dishType
 
     const dish = await prisma.dish.update({
       where: { id },
       data: {
         ...dishData,
-        ...(ingredients !== undefined && {
-          ingredients: {
-            deleteMany: {},
-            create: ingredients.map(i => ({
-              ingredientName: i.ingredientName,
-              quantity: i.quantity,
-              unit: i.unit,
-              ingredientId: i.ingredientId || undefined,
-            })),
-          },
-        }),
+        // LIVE/FIXED: clear labour cost and ingredients
+        ...(dishType === 'LIVE' || dishType === 'FIXED'
+          ? { labourCost: 0, ingredients: { deleteMany: {} } }
+          : ingredients !== undefined
+          ? {
+              ingredients: {
+                deleteMany: {},
+                create: ingredients.map(i => ({
+                  ingredientName: i.ingredientName,
+                  quantity: i.quantity,
+                  unit: i.unit,
+                  ingredientId: i.ingredientId || undefined,
+                })),
+              },
+            }
+          : {}),
       },
       include: {
-        ingredients: true,
+        ingredients: { include: { ingredient: true } },
       },
     })
+
+    // Re-fetch to get the current dishType if not provided in update
+    const currentDishType = dishType ?? (dish as any).dishType ?? 'RECIPE'
+    if (currentDishType === 'RECIPE') {
+      await recalculateDishCost(dish.id)
+    }
 
     revalidatePath('/dishes')
     return { success: true, data: serializeDish(dish) }
@@ -171,10 +193,7 @@ export async function updateDish(
 
 export async function deleteDish(id: string) {
   try {
-    await prisma.dish.delete({
-      where: { id },
-    })
-
+    await prisma.dish.delete({ where: { id } })
     revalidatePath('/dishes')
     return { success: true }
   } catch (error) {
@@ -187,6 +206,8 @@ export async function bulkUploadDishes(dishes: Array<{
   name: string
   description?: string
   category: string
+  dishType?: DishType
+  labourCost?: number
   pricePerPlate?: number
   priceUnit?: string
   estimatedCostPerPlate?: number
@@ -196,34 +217,40 @@ export async function bulkUploadDishes(dishes: Array<{
 }>) {
   try {
     const createdDishes = await Promise.all(
-      dishes.map(dish =>
-        prisma.dish.create({
+      dishes.map(dish => {
+        const dishType = dish.dishType ?? 'RECIPE'
+        const ingredients = dishType === 'RECIPE' ? (dish.ingredients ?? []) : []
+        return prisma.dish.create({
           data: {
             name: dish.name,
             description: dish.description,
             category: dish.category,
+            dishType,
+            labourCost: dishType === 'RECIPE' ? (dish.labourCost ?? 0) : 0,
             estimatedCostPerPlate: dish.estimatedCostPerPlate || 0,
             pricePerPlate: dish.pricePerPlate || 0,
             priceUnit: dish.priceUnit || 'per plate',
             sellingPricePerPlate: dish.sellingPricePerPlate || 0,
             isVeg: dish.isVeg ?? true,
-            ingredients: dish.ingredients
+            ingredients: ingredients.length
               ? {
-                create: dish.ingredients.map(i => ({
-                  ingredientName: i.ingredientName,
-                  quantity: i.quantity,
-                  unit: i.unit,
-                  ingredientId: i.ingredientId || undefined,
-                })),
-              }
+                  create: ingredients.map(i => ({
+                    ingredientName: i.ingredientName,
+                    quantity: i.quantity,
+                    unit: i.unit,
+                    ingredientId: i.ingredientId || undefined,
+                  })),
+                }
               : undefined,
           },
         })
-      )
+      })
     )
 
     for (const dish of createdDishes) {
-      await recalculateDishCost(dish.id)
+      if ((dish as any).dishType === 'RECIPE') {
+        await recalculateDishCost(dish.id)
+      }
     }
 
     revalidatePath('/dishes')

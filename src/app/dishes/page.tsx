@@ -2,7 +2,7 @@
 
 import PageLayout from '@/components/PageLayout';
 import BulkUploadModal from '@/components/BulkUploadModal';
-import { Plus, Search, Edit, Trash2, Upload, ChefHat, ArrowRight, ChevronDown, ChevronRight, PackageOpen } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Upload, ChefHat, ArrowRight, ChevronDown, ChevronRight, PackageOpen, Zap, Package } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -126,6 +126,7 @@ export default function DishesPage() {
                                         <th className="px-4 py-3 font-medium text-zinc-500">Dish Name</th>
                                         <th className="px-4 py-3 font-medium text-zinc-500">Category</th>
                                         <th className="px-4 py-3 font-medium text-zinc-500">Type</th>
+                                        <th className="px-4 py-3 font-medium text-zinc-500">Dish Type</th>
                                         <th className="px-4 py-3 font-medium text-zinc-500 text-right">Cost / Sell Price</th>
                                         <th className="px-4 py-3 font-medium text-zinc-500 text-right">Actions</th>
                                     </tr>
@@ -158,16 +159,39 @@ export default function DishesPage() {
                                                             {dish.isVeg ? 'Veg' : 'Non-Veg'}
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 py-3 text-right text-zinc-600">
-                                                        <div className="flex flex-col items-end gap-0.5">
-                                                            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">{dish.priceUnit || 'per plate'}</span>
-                                                            <span className="font-medium">
-                                                                ₹{dish.pricePerPlate > 0 ? dish.pricePerPlate : dish.estimatedCostPerPlate}
-                                                                {dish.sellingPricePerPlate > 0 && dish.sellingPricePerPlate !== dish.pricePerPlate && (
-                                                                    <span className="text-emerald-600 ml-1.5">→ ₹{dish.sellingPricePerPlate}</span>
-                                                                )}
+                                                    <td className="px-4 py-3">
+                                                        {dish.dishType === 'LIVE' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
+                                                                <Zap className="w-3 h-3" /> Live
                                                             </span>
-                                                        </div>
+                                                        )}
+                                                        {dish.dishType === 'FIXED' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">
+                                                                <Package className="w-3 h-3" /> Fixed
+                                                            </span>
+                                                        )}
+                                                        {(dish.dishType === 'RECIPE' || !dish.dishType) && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
+                                                                <ChefHat className="w-3 h-3" /> Recipe
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-zinc-600">
+                                                        {dish.dishType === 'LIVE' ? (
+                                                            <span className="text-xs text-amber-600 font-medium italic">Per-event price</span>
+                                                        ) : (
+                                                            <div className="flex flex-col items-end gap-0.5">
+                                                                <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">{dish.priceUnit || 'per plate'}</span>
+                                                                <span className="font-medium">
+                                                                    {dish.dishType === 'RECIPE'
+                                                                        ? `₹${dish.estimatedCostPerPlate > 0 ? dish.estimatedCostPerPlate : dish.pricePerPlate}`
+                                                                        : `₹${dish.pricePerPlate}`}
+                                                                    {dish.sellingPricePerPlate > 0 && dish.sellingPricePerPlate !== dish.pricePerPlate && (
+                                                                        <span className="text-emerald-600 ml-1.5">→ ₹{dish.sellingPricePerPlate}</span>
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
                                                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -193,13 +217,30 @@ export default function DishesPage() {
                                                 </tr>
                                                 {expandedRows[dish.id] && (
                                                     <tr key={`${dish.id}-expanded`} className="bg-zinc-50/50 border-b border-zinc-100 last:border-0">
-                                                        <td colSpan={6} className="px-4 py-6 text-sm">
+                                                        <td colSpan={7} className="px-4 py-6 text-sm">
                                                             <div className="max-w-3xl ml-10">
                                                                 <h4 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2">
                                                                     <PackageOpen className="w-4 h-4 text-zinc-400" />
-                                                                    Ingredients & Cost Breakdown
+                                                                    {dish.dishType === 'LIVE' ? 'Live Counter Details' : dish.dishType === 'FIXED' ? 'Fixed Price Details' : 'Ingredients & Cost Breakdown'}
                                                                 </h4>
-                                                                {dish.ingredients && dish.ingredients.length > 0 ? (
+                                                                {dish.dishType === 'LIVE' ? (
+                                                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800 text-sm">
+                                                                        Live counter — price is entered per enquiry. No fixed ingredient cost.
+                                                                    </div>
+                                                                ) : dish.dishType === 'FIXED' ? (
+                                                                    <div className="bg-white border border-zinc-200 rounded-lg p-4">
+                                                                        <div className="flex justify-between text-sm">
+                                                                            <span className="text-zinc-600">Fixed Price ({dish.priceUnit})</span>
+                                                                            <span className="font-semibold text-zinc-900">₹{dish.pricePerPlate}</span>
+                                                                        </div>
+                                                                        {dish.sellingPricePerPlate > 0 && (
+                                                                            <div className="flex justify-between text-sm mt-1">
+                                                                                <span className="text-zinc-600">Selling Price</span>
+                                                                                <span className="font-semibold text-emerald-600">₹{dish.sellingPricePerPlate}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : dish.ingredients && dish.ingredients.length > 0 ? (
                                                                     <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
                                                                         <table className="w-full text-left">
                                                                             <thead className="bg-zinc-50 border-b border-zinc-100">
@@ -219,21 +260,21 @@ export default function DishesPage() {
                                                                                         : 0;
                                                                                     return (
                                                                                         <tr key={i}>
-                                                                                            <td className="px-4 py-2 text-zinc-900">
-                                                                                                {ing.ingredientName}
-                                                                                            </td>
+                                                                                            <td className="px-4 py-2 text-zinc-900">{ing.ingredientName}</td>
                                                                                             <td className="px-4 py-2 text-zinc-600 text-right">{ing.quantity} {ing.unit}</td>
-                                                                                            <td className="px-4 py-2 text-zinc-600 text-right">
-                                                                                                {isGlobal ? `₹${priceSource}` : '-'}
-                                                                                            </td>
-                                                                                            <td className="px-4 py-2 text-zinc-900 font-medium text-right">
-                                                                                                {cost > 0 ? `₹${cost.toFixed(2)}` : '-'}
-                                                                                            </td>
+                                                                                            <td className="px-4 py-2 text-zinc-600 text-right">{isGlobal ? `₹${priceSource}` : '-'}</td>
+                                                                                            <td className="px-4 py-2 text-zinc-900 font-medium text-right">{cost > 0 ? `₹${cost.toFixed(2)}` : '-'}</td>
                                                                                         </tr>
                                                                                     );
                                                                                 })}
+                                                                                {dish.labourCost > 0 && (
+                                                                                    <tr className="bg-zinc-50/50">
+                                                                                        <td colSpan={3} className="px-4 py-2 text-right text-zinc-500 text-xs">Labour Cost:</td>
+                                                                                        <td className="px-4 py-2 text-right text-zinc-600">₹{dish.labourCost}</td>
+                                                                                    </tr>
+                                                                                )}
                                                                                 <tr className="bg-zinc-50 font-medium border-t-2 border-zinc-100">
-                                                                                    <td colSpan={3} className="px-4 py-3 text-right text-zinc-700">Calculated Cost Per Plate:</td>
+                                                                                    <td colSpan={3} className="px-4 py-3 text-right text-zinc-700">Estimated Cost / Serving:</td>
                                                                                     <td className="px-4 py-3 text-right text-zinc-900 border-l border-zinc-100">₹{dish.estimatedCostPerPlate}</td>
                                                                                 </tr>
                                                                             </tbody>
