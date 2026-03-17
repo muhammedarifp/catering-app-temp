@@ -52,7 +52,10 @@ export async function reviseEnquiry(id: string) {
   try {
     const enquiry = await prisma.enquiry.findUnique({
       where: { id },
-      select: { status: true, revisionNumber: true },
+      include: {
+        dishes: { include: { dish: { select: { name: true, priceUnit: true } } } },
+        services: true,
+      },
     })
 
     if (!enquiry) return { success: false, error: 'Enquiry not found' }
@@ -60,7 +63,31 @@ export async function reviseEnquiry(id: string) {
       return { success: false, error: 'Only a quoted enquiry can be revised' }
     }
 
-    const newRevision = (enquiry.revisionNumber || 1) + 1
+    const currentRev = enquiry.revisionNumber || 1
+    const newRevision = currentRev + 1
+
+    // Snapshot the current PRICE_QUOTED state before reopening
+    await prisma.enquiryRevisionSnapshot.create({
+      data: {
+        enquiryId: id,
+        revisionNumber: currentRev,
+        dishes: enquiry.dishes.map(d => ({
+          dishId: d.dishId,
+          dishName: d.dish?.name || '',
+          quantity: d.quantity,
+          pricePerPlate: Number(d.pricePerPlate),
+          priceUnit: d.dish?.priceUnit || 'per plate',
+        })),
+        services: enquiry.services.map(s => ({
+          serviceName: s.serviceName,
+          description: s.description || '',
+          price: Number(s.price),
+        })),
+        finalPrice: enquiry.finalPrice,
+        advanceAmount: enquiry.advanceAmount,
+        paymentTerms: enquiry.paymentTerms,
+      },
+    })
 
     const updated = await prisma.enquiry.update({
       where: { id },
@@ -85,6 +112,77 @@ export async function reviseEnquiry(id: string) {
   } catch (error) {
     console.error('Failed to revise enquiry:', error)
     return { success: false, error: 'Failed to revise enquiry' }
+  }
+}
+
+export async function restoreRevision(enquiryId: string, snapshotId: string) {
+  try {
+    const [snapshot, enquiry] = await Promise.all([
+      prisma.enquiryRevisionSnapshot.findUnique({ where: { id: snapshotId } }),
+      prisma.enquiry.findUnique({ where: { id: enquiryId }, select: { status: true, revisionNumber: true } }),
+    ])
+
+    if (!snapshot || snapshot.enquiryId !== enquiryId) return { success: false, error: 'Snapshot not found' }
+    if (!enquiry) return { success: false, error: 'Enquiry not found' }
+    if (enquiry.status === 'SUCCESS' || enquiry.status === 'LOST') {
+      return { success: false, error: 'Cannot restore a completed enquiry' }
+    }
+    if (enquiry.status !== 'PENDING') {
+      return { success: false, error: 'Revise the quotation first before restoring a previous revision' }
+    }
+
+    const dishes = snapshot.dishes as Array<{ dishId: string; quantity: number; pricePerPlate: number }>
+    const services = snapshot.services as Array<{ serviceName: string; description: string; price: number }>
+
+    // Delete current dishes & services, recreate from snapshot
+    await prisma.enquiryDish.deleteMany({ where: { enquiryId } })
+    await prisma.enquiryService.deleteMany({ where: { enquiryId } })
+
+    if (dishes.length > 0) {
+      await prisma.enquiryDish.createMany({
+        data: dishes.map(d => ({
+          enquiryId,
+          dishId: d.dishId,
+          quantity: d.quantity,
+          pricePerPlate: d.pricePerPlate,
+        })),
+      })
+    }
+
+    if (services.length > 0) {
+      await prisma.enquiryService.createMany({
+        data: services.map(s => ({
+          enquiryId,
+          serviceName: s.serviceName,
+          description: s.description || undefined,
+          price: s.price,
+        })),
+      })
+    }
+
+    await prisma.enquiry.update({
+      where: { id: enquiryId },
+      data: {
+        finalPrice: snapshot.finalPrice,
+        advanceAmount: snapshot.advanceAmount,
+        paymentTerms: snapshot.paymentTerms,
+        updates: {
+          create: {
+            updateType: 'RESTORE',
+            description: `Restored to Rev. ${snapshot.revisionNumber} — menu and pricing rolled back`,
+            oldValue: String(enquiry.revisionNumber),
+            newValue: String(snapshot.revisionNumber),
+          },
+        },
+      },
+    })
+
+    revalidatePath(`/enquiries/${enquiryId}`)
+    revalidatePath('/enquiries')
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to restore revision:', error)
+    return { success: false, error: 'Failed to restore revision' }
   }
 }
 
@@ -389,6 +487,9 @@ export async function getEnquiryById(id: string) {
         convertedEvent: true,
         costItems: {
           orderBy: [{ section: 'asc' }, { orderIndex: 'asc' }, { createdAt: 'asc' }],
+        },
+        revisionSnapshots: {
+          orderBy: { revisionNumber: 'asc' },
         },
       },
     })

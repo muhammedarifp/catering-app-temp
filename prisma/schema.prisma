@@ -91,10 +91,11 @@ model Enquiry {
   updatedAt     DateTime      @updatedAt
 
   // Relations
-  dishes        EnquiryDish[]
-  services      EnquiryService[]
-  updates       EnquiryUpdate[]
-  costItems     CostItem[]
+  dishes             EnquiryDish[]
+  services           EnquiryService[]
+  updates            EnquiryUpdate[]
+  costItems          CostItem[]
+  revisionSnapshots  EnquiryRevisionSnapshot[]
   createdBy     User          @relation("CreatedBy", fields: [createdById], references: [id])
   createdById   String
 
@@ -134,7 +135,7 @@ model EnquiryService {
 model EnquiryUpdate {
   id          String   @id @default(cuid())
   enquiryId   String
-  updateType  String   // "STATUS_CHANGE", "DETAILS_MODIFIED", "NOTE_ADDED"
+  updateType  String   // "STATUS_CHANGE", "DETAILS_MODIFIED", "NOTE_ADDED", "REVISION", "RESTORE"
   description String
   oldValue    String?
   newValue    String?
@@ -144,6 +145,23 @@ model EnquiryUpdate {
 
   @@index([enquiryId])
   @@index([createdAt])
+}
+
+// Snapshot of a quotation at the time it was revised (allows restoring to a previous revision)
+model EnquiryRevisionSnapshot {
+  id             String   @id @default(cuid())
+  enquiryId      String
+  revisionNumber Int      // the revision number this snapshot captures
+  dishes         Json     // [{dishId, dishName, quantity, pricePerPlate, priceUnit}]
+  services       Json     // [{serviceName, description, price}]
+  finalPrice     Decimal  @default(0)
+  advanceAmount  Decimal  @default(0)
+  paymentTerms   String   @default("")
+  createdAt      DateTime @default(now())
+
+  enquiry        Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId])
 }
 
 // Event Management

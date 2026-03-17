@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, DishType } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg'
 import bcrypt from 'bcrypt'
@@ -733,12 +733,13 @@ async function main() {
   const dishIds: Record<string, string> = {}
   for (const dish of dishes) {
     const { ingredients, ...dishData } = dish
-    const dishType = (dishData as any).dishType ?? 'RECIPE'
+    const dishType = ((dishData as any).dishType ?? 'RECIPE') as DishType
     // LIVE and FIXED dishes have no ingredients
     const ingrToCreate = dishType === 'RECIPE' ? ingredients : []
     const created = await prisma.dish.create({
       data: {
         ...dishData,
+        dishType,
         ...(ingrToCreate.length > 0 && {
           ingredients: {
             create: ingrToCreate.map((ing: { ingredientName: string; quantity: number; unit: string }) => {

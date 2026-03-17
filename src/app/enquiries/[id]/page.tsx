@@ -12,7 +12,7 @@ import PageLayout from '@/components/PageLayout'
 import {
   getEnquiryById, updateEnquiryStatus, addEnquiryUpdate, updateEnquiryDetails,
   removeEnquiryDish, removeEnquiryService, updateEnquiryDish, updateEnquiryService,
-  addEnquiryDish, addEnquiryService, updateEnquiryPricing, reviseEnquiry
+  addEnquiryDish, addEnquiryService, updateEnquiryPricing, reviseEnquiry, restoreRevision
 } from '@/lib/actions/enquiries'
 import { addCostItem, updateCostItem, deleteCostItem, syncGroceryFromMenu } from '@/lib/actions/costing'
 import { getDishes } from '@/lib/actions/dishes'
@@ -191,6 +191,11 @@ function convertToBaseUnit(qty: number, fromUnit: string, toUnit: string): numbe
 
 function computeDishCost(dish: any): number {
   if (!dish) return 0
+  // LIVE: no master price — must be entered per enquiry
+  if (dish.dishType === 'LIVE') return 0
+  // FIXED: packaged item, use pricePerPlate directly
+  if (dish.dishType === 'FIXED') return Number(dish.pricePerPlate) || 0
+  // RECIPE: sum linked ingredient costs, fallback to estimatedCostPerPlate
   const linked = (dish.ingredients || []).filter(
     (i: any) => i.ingredient && Number(i.ingredient.pricePerUnit) > 0
   )
@@ -274,6 +279,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
 
   // Revision
   const [revising, setRevising] = useState(false)
+  const [restoring, setRestoring] = useState(false)
 
   // Note
   const [noteInput, setNoteInput]   = useState('')
@@ -370,6 +376,37 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
     setModal(null)
     setRevising(false)
     await loadEnquiry({ silent: true })
+  }
+
+  const handleRestore = async (snapshotId: string, revNum: number) => {
+    setRestoring(true)
+    setModal(prev => prev ? { ...prev, loading: true } : null)
+    try {
+      const result = await restoreRevision(id, snapshotId)
+      if (!result.success) {
+        showToast('error', result.error || 'Failed to restore revision')
+        setRestoring(false)
+        setModal(null)
+        return
+      }
+      showToast('success', `Restored to Rev. ${revNum} — menu and pricing rolled back.`)
+    } catch {
+      showToast('error', 'Unexpected error during restore.')
+    }
+    setModal(null)
+    setRestoring(false)
+    await loadEnquiry({ silent: true })
+  }
+
+  const openRestoreModal = (snapshotId: string, revNum: number, dishCount: number, price: number) => {
+    setModal({
+      title: `Restore Rev. ${revNum}?`,
+      body: `This will replace the current menu (${dishCount} dish${dishCount !== 1 ? 'es' : ''}, ₹${price.toLocaleString()}) with the Rev. ${revNum} snapshot. Your current changes will be lost.`,
+      confirmLabel: `Restore Rev. ${revNum}`,
+      variant: 'violet',
+      onConfirm: () => handleRestore(snapshotId, revNum),
+      onCancel: () => setModal(null),
+    })
   }
 
   const handleAddNote = async () => {
@@ -707,6 +744,7 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
       case 'STATUS_CHANGE': return <CheckCircle className="w-4 h-4 text-indigo-500" />
       case 'NOTE_ADDED':    return <FileText className="w-4 h-4 text-slate-400" />
       case 'REVISION':      return <RotateCcw className="w-4 h-4 text-violet-500" />
+      case 'RESTORE':       return <RotateCcw className="w-4 h-4 text-emerald-500" />
       default:              return <Clock className="w-4 h-4 text-slate-400" />
     }
   }
@@ -931,41 +969,76 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                               <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
                                 {categoryDishes.length === 0 ? (
                                   <p className="col-span-2 text-xs text-slate-400 text-center py-4">No dishes in this category.</p>
-                                ) : categoryDishes.map((dish: any) => (
-                                  <button key={dish.id}
-                                    onClick={() => setNewDishForm({ dishId: dish.id, quantity: 1, pricePerPlate: computeDishCost(dish) })}
-                                    className={`flex items-center justify-between p-2.5 rounded-lg text-left text-sm transition-colors border ${
-                                      newDishForm.dishId === dish.id
-                                        ? 'bg-blue-600 text-white border-blue-600'
-                                        : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
-                                    }`}>
-                                    <span className="font-medium truncate">{dish.name}</span>
-                                    <span className="text-xs opacity-75 ml-2 shrink-0">₹{computeDishCost(dish)} {dish.priceUnit || 'per plate'}</span>
-                                  </button>
-                                ))}
+                                ) : categoryDishes.map((dish: any) => {
+                                  const isSelected = newDishForm.dishId === dish.id
+                                  const dishTypeBadge = dish.dishType === 'LIVE'
+                                    ? <span className={`text-[10px] font-bold px-1 py-0.5 rounded ${isSelected ? 'bg-amber-300/30 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>LIVE</span>
+                                    : dish.dishType === 'FIXED'
+                                    ? <span className={`text-[10px] font-bold px-1 py-0.5 rounded ${isSelected ? 'bg-emerald-300/30 text-emerald-100' : 'bg-emerald-100 text-emerald-700'}`}>FIXED</span>
+                                    : null
+                                  const priceLabel = dish.dishType === 'LIVE'
+                                    ? <span className={`text-xs ml-2 shrink-0 italic ${isSelected ? 'text-amber-200' : 'text-amber-600'}`}>price on event</span>
+                                    : <span className="text-xs opacity-75 ml-2 shrink-0">₹{computeDishCost(dish)} {dish.priceUnit || 'per plate'}</span>
+                                  return (
+                                    <button key={dish.id}
+                                      onClick={() => setNewDishForm({ dishId: dish.id, quantity: 1, pricePerPlate: computeDishCost(dish) })}
+                                      className={`flex items-center justify-between p-2.5 rounded-lg text-left text-sm transition-colors border ${
+                                        isSelected
+                                          ? 'bg-blue-600 text-white border-blue-600'
+                                          : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                                      }`}>
+                                      <span className="font-medium truncate flex items-center gap-1.5">{dish.name} {dishTypeBadge}</span>
+                                      {priceLabel}
+                                    </button>
+                                  )
+                                })}
                               </div>
-                              {newDishForm.dishId && (
-                                <div className="px-3 pb-3 pt-2 border-t border-blue-100 flex flex-wrap gap-3 items-end bg-blue-50/40">
-                                  <div className="w-24">
-                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Quantity</label>
-                                    <input type="number" min="1" value={newDishForm.quantity}
-                                      onChange={e => setNewDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
+                              {newDishForm.dishId && (() => {
+                                const isLiveDish = selectedDish?.dishType === 'LIVE'
+                                const isFixedDish = selectedDish?.dishType === 'FIXED'
+                                const canAdd = newDishForm.quantity > 0 && (!isLiveDish || newDishForm.pricePerPlate > 0)
+                                return (
+                                  <div className={`px-3 pb-3 pt-2 border-t flex flex-col gap-2 ${isLiveDish ? 'border-amber-200 bg-amber-50/40' : 'border-blue-100 bg-blue-50/40'}`}>
+                                    {isLiveDish && (
+                                      <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                                        ⚡ Live Counter — enter the agreed price for this event
+                                      </p>
+                                    )}
+                                    {isFixedDish && (
+                                      <p className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                                        📦 Fixed price item — price pre-filled from master
+                                      </p>
+                                    )}
+                                    <div className="flex flex-wrap gap-3 items-end">
+                                      <div className="w-24">
+                                        <label className="text-xs font-semibold text-slate-500 mb-1 block">Quantity</label>
+                                        <input type="number" min="1" value={newDishForm.quantity}
+                                          onChange={e => setNewDishForm(prev => ({ ...prev, quantity: Number(e.target.value) }))}
+                                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
+                                      </div>
+                                      <div className="w-28">
+                                        <label className={`text-xs font-semibold mb-1 block ${isLiveDish ? 'text-amber-600' : 'text-slate-500'}`}>
+                                          Price / {(selectedDish?.priceUnit || 'per plate').replace('per ', '')}
+                                          {isLiveDish && <span className="text-red-500 ml-0.5">*</span>}
+                                        </label>
+                                        <input type="number" value={newDishForm.pricePerPlate}
+                                          onChange={e => setNewDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))}
+                                          className={`w-full px-3 py-2 text-sm rounded-lg outline-none bg-white ${
+                                            isLiveDish
+                                              ? 'border-2 border-amber-400 focus:border-amber-500'
+                                              : 'border border-slate-200 focus:border-blue-500'
+                                          }`} />
+                                      </div>
+                                      <button onClick={handleAddNewDish} disabled={!canAdd || addingDish}
+                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1.5">
+                                        {addingDish && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Add
+                                      </button>
+                                      <button onClick={() => { setIsAddingDish(false); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }}
+                                        className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300 transition">Cancel</button>
+                                    </div>
                                   </div>
-                                  <div className="w-28">
-                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Price / {(selectedDish?.priceUnit || 'per plate').replace('per ', '')}</label>
-                                    <input type="number" value={newDishForm.pricePerPlate}
-                                      onChange={e => setNewDishForm(prev => ({ ...prev, pricePerPlate: Number(e.target.value) }))}
-                                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" />
-                                  </div>
-                                  <button onClick={handleAddNewDish} disabled={newDishForm.quantity <= 0 || addingDish}
-                                    className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1.5">
-                                    {addingDish && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Add
-                                  </button>
-                                  <button onClick={() => { setIsAddingDish(false); setNewDishForm({ dishId: '', quantity: 1, pricePerPlate: 0 }) }}
-                                    className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300 transition">Cancel</button>
-                                </div>
-                              )}
+                                )
+                              })()}
                             </div>
                           )
                         })()}
@@ -992,6 +1065,8 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                           {d.dish?.category && <span className="text-xs text-slate-500">{d.dish.category}</span>}
                                           {d.dish?.priceUnit && <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">{d.dish.priceUnit}</span>}
+                                          {d.dish?.dishType === 'LIVE' && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md border border-amber-200">⚡ LIVE</span>}
+                                          {d.dish?.dishType === 'FIXED' && <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md border border-emerald-200">📦 FIXED</span>}
                                           {isEditable && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">DRAFT</span>}
                                         </div>
                                       </div>
@@ -1733,55 +1808,110 @@ export default function EnquiryDetailPage({ params }: { params: Promise<{ id: st
                     cur.isCurrent = !isTerminal
                     groups.push(cur)
 
+                    // Build snapshot map keyed by revisionNumber
+                    const snapshotsMap: Record<number, any> = {}
+                    for (const snap of (enquiry.revisionSnapshots || [])) {
+                      snapshotsMap[snap.revisionNumber] = snap
+                    }
+
                     return (
                       <div className="space-y-5">
                         {groups.length === 0 || (groups.length === 1 && groups[0].updates.length === 0) ? (
                           <p className="text-slate-400 text-sm text-center py-4">No activity yet</p>
                         ) : (
-                          [...groups].reverse().map((group) => (
-                            <div key={group.revNum} className="space-y-1">
-                              <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider ${
-                                group.revNum === 1
-                                  ? 'bg-slate-100 text-slate-500'
-                                  : group.isCurrent
-                                    ? 'bg-violet-100 text-violet-700 border border-violet-200'
-                                    : 'bg-violet-50 text-violet-500 border border-violet-100'
-                              }`}>
-                                {group.revNum > 1 ? <RotateCcw className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
-                                {group.title}
-                                {group.isCurrent && (
-                                  <span className="ml-auto text-[10px] bg-violet-600 text-white px-1.5 py-0.5 rounded-md">Current</span>
-                                )}
-                              </div>
-                              {group.updates.length === 0 ? (
-                                <p className="text-xs text-slate-400 pl-4 py-2">No activity in this revision</p>
-                              ) : (
-                                <div className="pl-3 border-l-2 border-slate-100 ml-3 space-y-3 pt-2 pb-1">
-                                  {[...group.updates].reverse().map((update: any) => (
-                                    <div key={update.id} className="flex items-start gap-3">
-                                      <div className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${update.updateType === 'REVISION' ? 'bg-violet-100' : 'bg-slate-100'}`}>
-                                        {getUpdateIcon(update.updateType)}
-                                      </div>
+                          [...groups].reverse().map((group) => {
+                            const snap = snapshotsMap[group.revNum]
+                            const canRestore = !group.isCurrent && snap && isEditable
+                            return (
+                              <div key={group.revNum} className="space-y-1">
+                                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider ${
+                                  group.revNum === 1
+                                    ? 'bg-slate-100 text-slate-500'
+                                    : group.isCurrent
+                                      ? 'bg-violet-100 text-violet-700 border border-violet-200'
+                                      : 'bg-violet-50 text-violet-500 border border-violet-100'
+                                }`}>
+                                  {group.revNum > 1 ? <RotateCcw className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+                                  {group.title}
+                                  {group.isCurrent && (
+                                    <span className="ml-auto text-[10px] bg-violet-600 text-white px-1.5 py-0.5 rounded-md">Current</span>
+                                  )}
+                                </div>
+
+                                {/* Snapshot card for non-current revisions */}
+                                {snap && !group.isCurrent && (
+                                  <div className="ml-3 mt-1 p-3 bg-violet-50 border border-violet-100 rounded-xl space-y-2">
+                                    <div className="flex items-start justify-between gap-2">
                                       <div className="flex-1 min-w-0">
-                                        <p className={`text-sm ${update.updateType === 'REVISION' ? 'font-semibold text-violet-800' : 'text-slate-700'}`}>
-                                          {update.description}
+                                        <p className="text-xs font-semibold text-violet-700 mb-1">
+                                          Snapshot — {snap.dishes?.length ?? 0} dish{snap.dishes?.length !== 1 ? 'es' : ''}
+                                          {snap.finalPrice > 0 && <span className="ml-2 text-violet-500">· ₹{Number(snap.finalPrice).toLocaleString()}</span>}
                                         </p>
-                                        {(update.oldValue || update.newValue) && (
-                                          <p className="text-xs text-slate-400 mt-0.5">
-                                            {update.oldValue && <span className="line-through mr-1">{update.oldValue}</span>}
-                                            {update.newValue && <span className="text-indigo-600 font-medium">{update.newValue}</span>}
+                                        {snap.dishes?.length > 0 && (
+                                          <p className="text-xs text-slate-500 truncate">
+                                            {snap.dishes.slice(0, 4).map((d: any) => d.dishName).join(', ')}
+                                            {snap.dishes.length > 4 && ` +${snap.dishes.length - 4} more`}
                                           </p>
                                         )}
-                                        <p className="text-xs text-slate-400 mt-0.5">
-                                          {new Date(update.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                        </p>
                                       </div>
+                                      {canRestore && (
+                                        <button
+                                          onClick={() => openRestoreModal(snap.id, group.revNum, snap.dishes?.length ?? 0, Number(snap.finalPrice))}
+                                          disabled={restoring}
+                                          className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 transition disabled:opacity-50">
+                                          <RotateCcw className="w-3 h-3" />
+                                          Restore
+                                        </button>
+                                      )}
                                     </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))
+                                    {!canRestore && !group.isCurrent && (
+                                      isLocked
+                                        ? <p className="text-[11px] text-violet-400 italic">Revise the quotation first to restore an older revision.</p>
+                                        : isTerminal
+                                          ? <p className="text-[11px] text-slate-400 italic">Cannot restore — quotation is finalised.</p>
+                                          : null
+                                    )}
+                                  </div>
+                                )}
+
+                                {group.updates.length === 0 ? (
+                                  <p className="text-xs text-slate-400 pl-4 py-2">No activity in this revision</p>
+                                ) : (
+                                  <div className="pl-3 border-l-2 border-slate-100 ml-3 space-y-3 pt-2 pb-1">
+                                    {[...group.updates].reverse().map((update: any) => (
+                                      <div key={update.id} className="flex items-start gap-3">
+                                        <div className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${
+                                          update.updateType === 'REVISION' ? 'bg-violet-100'
+                                          : update.updateType === 'RESTORE' ? 'bg-emerald-100'
+                                          : 'bg-slate-100'
+                                        }`}>
+                                          {getUpdateIcon(update.updateType)}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className={`text-sm ${
+                                            update.updateType === 'REVISION' ? 'font-semibold text-violet-800'
+                                            : update.updateType === 'RESTORE' ? 'font-semibold text-emerald-700'
+                                            : 'text-slate-700'
+                                          }`}>
+                                            {update.description}
+                                          </p>
+                                          {(update.oldValue || update.newValue) && (
+                                            <p className="text-xs text-slate-400 mt-0.5">
+                                              {update.oldValue && <span className="line-through mr-1">{update.oldValue}</span>}
+                                              {update.newValue && <span className="text-indigo-600 font-medium">{update.newValue}</span>}
+                                            </p>
+                                          )}
+                                          <p className="text-xs text-slate-400 mt-0.5">
+                                            {new Date(update.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })
                         )}
                       </div>
                     )
